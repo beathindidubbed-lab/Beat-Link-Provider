@@ -1,11 +1,19 @@
 import asyncio
+import os
 from bot import Bot
 from pyrogram import idle
 
 async def start_services():
+    # TEMPORARY: Clear session on startup
+    session_files = ['Bot.session', 'Bot.session-journal']
+    for file in session_files:
+        if os.path.exists(file):
+            os.remove(file)
+            print(f"🗑️ Deleted old session file: {file}")
+    
     app = Bot()
-    await app.start() # This starts the channel check in bot.py
-    await idle()      # Keeps the bot listening for messages
+    await app.start()
+    await idle()
     await app.stop()
 
 if __name__ == "__main__":

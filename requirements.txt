@@ -7,6 +7,7 @@ python-dotenv
 pymongo
 dnspython
 asyncpg
+aiosqlite
 aiomysql
 # --- For-Web-Response ------- #
 aiohttp

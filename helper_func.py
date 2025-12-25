@@ -1,4 +1,4 @@
-#(©)Codexbotz
+# helper_func.py - Fixed version
 
 import base64
 import re
@@ -6,10 +6,10 @@ import asyncio
 import logging 
 from pyrogram import filters
 from pyrogram.enums import ChatMemberStatus
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import FORCE_SUB_CHANNEL, ADMINS, AUTO_DELETE_TIME, AUTO_DEL_SUCCESS_MSG
 from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant
 from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 async def is_subscribed(filter, client, update):
     if not FORCE_SUB_CHANNEL:
@@ -18,7 +18,7 @@ async def is_subscribed(filter, client, update):
     if user_id in ADMINS:
         return True
     try:
-        member = await client.get_chat_member(chat_id = FORCE_SUB_CHANNEL, user_id = user_id)
+        member = await client.get_chat_member(chat_id=FORCE_SUB_CHANNEL, user_id=user_id)
     except UserNotParticipant:
         return False
 
@@ -72,7 +72,7 @@ async def get_message_id(client, message):
         return 0
     elif message.text:
         pattern = "https://t.me/(?:c/)?(.*)/(\d+)"
-        matches = re.match(pattern,message.text)
+        matches = re.match(pattern, message.text)
         if not matches:
             return 0
         channel_id = matches.group(1)
@@ -124,66 +124,12 @@ async def delete_file(messages, client, process, original_link):
         [InlineKeyboardButton("🔄 Get File Again", url=original_link)]
     ])
     
-    await process.edit_text(
-        f"{AUTO_DEL_SUCCESS_MSG}\n\n<b>Want to access the file again?</b>\n<i>Click the button below:</i>",
-        reply_markup=reply_markup
-    )
-
-async def shorten_url(url: str) -> str:
-    """Shorten URL using configured shortener service"""
     try:
-        from database.database import get_setting
-        
-        enabled = get_setting('shortener_enabled', 'False')
-        if enabled != 'True':
-            return url
-        
-        api_key = get_setting('shortener_api', None)
-        site_url = get_setting('shortener_site', None)
-        
-        if not api_key or not site_url:
-            return url
-        
-        import aiohttp
-        
-        # Support multiple shortener services
-        if 'linkvertise' in site_url.lower():
-            async with aiohttp.ClientSession() as session:
-                params = {
-                    'api': api_key,
-                    'url': url
-                }
-                async with session.get(f"{site_url}/api", params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data.get('shortenedUrl', url)
-        
-        elif 'shortest' in site_url.lower() or 'shorte.st' in site_url.lower():
-            async with aiohttp.ClientSession() as session:
-                params = {
-                    'key': api_key,
-                    'url': url
-                }
-                async with session.get(f"{site_url}/api", params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data.get('shortenedUrl', url)
-        
-        elif 'gplinks' in site_url.lower():
-            async with aiohttp.ClientSession() as session:
-                params = {
-                    'api': api_key,
-                    'url': url
-                }
-                async with session.get(f"{site_url}/api", params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data.get('shortenedUrl', url)
-        
-        return url
-        
+        await process.edit_text(
+            f"{AUTO_DEL_SUCCESS_MSG}\n\n<b>Want to access the file again?</b>\n<i>Click the button below:</i>",
+            reply_markup=reply_markup
+        )
     except Exception as e:
-        print(f"URL shortening failed: {e}")
-        return url
+        print(f"Error editing delete message: {e}")
 
 subscribed = filters.create(is_subscribed)

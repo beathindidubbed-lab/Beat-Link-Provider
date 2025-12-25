@@ -1,4 +1,4 @@
-# bot.py - Version with retry logic for Railway
+# bot.py - Fixed version with proper initialization
 
 from aiohttp import web
 from plugins import web_server
@@ -35,6 +35,8 @@ class Bot(Client):
             bot_token=TG_BOT_TOKEN
         )
         self.LOGGER = LOGGER
+        self.db_channel = None  # Initialize attribute
+        self.invitelink = None  # Initialize attribute
 
     async def start(self):
         try:
@@ -49,18 +51,14 @@ class Bot(Client):
             print(f"🆔 Bot ID: {usr_bot_me.id}")
             print("=" * 50)
 
-            # RETRY LOGIC for database channel
+            # Setup Database Channel with retry logic
             max_retries = 3
-            retry_delay = 5
-            
             for attempt in range(1, max_retries + 1):
                 try:
                     print(f"🔍 Attempt {attempt}/{max_retries}: Checking Database Channel: {CHANNEL_ID}")
                     
-                    # Wait a moment for Telegram to sync
                     if attempt > 1:
-                        print(f"⏳ Waiting {retry_delay} seconds before retry...")
-                        await asyncio.sleep(retry_delay)
+                        await asyncio.sleep(3)
                     
                     db_channel = await self.get_chat(CHANNEL_ID)
                     self.db_channel = db_channel
@@ -69,38 +67,28 @@ class Bot(Client):
                     
                     # Test sending and deleting message
                     try:
-                        test = await self.send_message(chat_id=CHANNEL_ID, text="✅ Bot Connected - Test Message")
+                        test = await self.send_message(chat_id=CHANNEL_ID, text="✅ Bot Connected")
                         await asyncio.sleep(1)
                         await test.delete()
                         print(f"✅ Bot can send/delete messages in DB channel")
                     except Exception as e:
                         print(f"⚠️ Warning: Could not test message: {e}")
                     
-                    # If we got here, channel access is working
                     break
                     
                 except (PeerIdInvalid, ChannelInvalid) as e:
                     if attempt == max_retries:
-                        self.LOGGER(__name__).error(f"Database Channel Error after {max_retries} attempts: {e}")
+                        self.LOGGER(__name__).error(f"❌ Database Channel Error: {e}")
                         print("=" * 50)
-                        print("❌ DATABASE CHANNEL ERROR!")
-                        print(f"❌ Channel ID: {CHANNEL_ID}")
-                        print(f"❌ Error: {e}")
+                        print("❌ CRITICAL ERROR: Cannot access Database Channel")
+                        print(f"Channel ID: {CHANNEL_ID}")
                         print("=" * 50)
-                        print("⚠️ CRITICAL: Bot cannot access DB Channel")
-                        print("⚠️ POSSIBLE CAUSES:")
-                        print("1. Bot was just added - Telegram needs time to sync")
-                        print("2. Session is cached - try redeploying")
-                        print("3. Channel ID is incorrect")
-                        print("4. Bot is not actually in the channel")
+                        print("Solutions:")
+                        print("1. Add bot to the channel")
+                        print("2. Make bot admin with post/edit/delete permissions")
+                        print("3. Verify channel ID is correct (use @userinfobot)")
                         print("=" * 50)
-                        print("⚠️ SOLUTIONS:")
-                        print("1. Wait 5-10 minutes after adding bot")
-                        print("2. Redeploy on Railway to get fresh session")
-                        print("3. Double-check channel ID with @userinfobot")
-                        print("4. Remove bot from channel, then add again")
-                        print("=" * 50)
-                        sys.exit()
+                        sys.exit(1)
                     else:
                         print(f"⚠️ Channel not accessible yet, retrying...")
                         continue
@@ -112,12 +100,11 @@ class Bot(Client):
                 
                 except Exception as e:
                     if attempt == max_retries:
-                        self.LOGGER(__name__).error(f"Unexpected error: {e}")
-                        print(f"❌ Unexpected error: {e}")
-                        sys.exit()
+                        self.LOGGER(__name__).error(f"❌ Unexpected error: {e}")
+                        sys.exit(1)
                     continue
 
-            # Check Force Sub Channel
+            # Setup Force Subscribe Channel
             if FORCE_SUB_CHANNEL and FORCE_SUB_CHANNEL != 0:
                 try:
                     print(f"🔍 Checking Force Subscribe Channel: {FORCE_SUB_CHANNEL}")
@@ -146,7 +133,7 @@ class Bot(Client):
             self.set_parse_mode(ParseMode.HTML)
             self.LOGGER(__name__).info(f"Bot Running..!")
             print(ascii_art)
-            print("Bot is ready!")
+            print("✅ Bot is ready!")
             print("=" * 50)
             
             # Start web server
@@ -163,7 +150,7 @@ class Bot(Client):
             self.LOGGER(__name__).error(f"❌ Startup error: {e}")
             import traceback
             traceback.print_exc()
-            sys.exit()
+            sys.exit(1)
 
     async def stop(self, *args):
         await super().stop()

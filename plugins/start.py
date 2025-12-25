@@ -1,4 +1,4 @@
-#(©)CodeXBotz
+# plugins/start.py - Fixed version with no command conflicts
 
 import os
 import asyncio
@@ -8,192 +8,24 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
 
 from bot import Bot
-import config
-from helper_func import subscribed, decode, get_messages, delete_file, shorten_url
+from config import ADMINS, FORCE_MSG, START_MSG, CUSTOM_CAPTION, DISABLE_CHANNEL_BUTTON, PROTECT_CONTENT, START_PIC, AUTO_DELETE_TIME, AUTO_DELETE_MSG, JOIN_REQUEST_ENABLE, FORCE_SUB_CHANNEL, OWNER_ID
+from helper_func import subscribed, decode, get_messages, delete_file
 from database.database import add_user, del_user, full_userbase, present_user
 
-# Help messages for different user types
-USER_HELP_TEXT = """
-╔══════════════════════════════╗
-║  📚 <b>USER COMMANDS</b>  📚  ║
-╚══════════════════════════════╝
-
-<b>Available Commands:</b>
-
-🚀 <b>/start</b> - Start the bot
-📚 <b>/help</b> - Show this help message
-
-<b>How to Use:</b>
-
-1️⃣ Click on any file link shared by admins
-2️⃣ The bot will send you the file
-3️⃣ If auto-delete is enabled, save the file quickly!
-4️⃣ Use the "Get File Again" button if needed
-
-<b>Features:</b>
-✅ Fast file delivery
-✅ Protected content (if enabled)
-✅ Auto-delete for privacy
-✅ Re-send capability
-
-<b>Need Help?</b>
-Contact the bot owner for support.
-
-<i>Powered by CodeXBotz</i>
-"""
-
-ADMIN_HELP_TEXT = """
-╔══════════════════════════════╗
-║  🛠️ <b>ADMIN COMMANDS</b>  🛠️  ║
-╚══════════════════════════════╝
-
-<b>📁 File Management:</b>
-• <b>/batch</b> - Create batch link (multiple files)
-• <b>/genlink</b> - Generate single file link
-• <b>/custom_batch</b> - Custom batch with range
-
-<b>📊 Bot Management:</b>
-• <b>/users</b> - Get total user count
-• <b>/broadcast</b> - Broadcast message to all users
-• <b>/stats</b> - Check bot uptime and statistics
-
-<b>⚙️ Configuration:</b>
-• <b>/setup</b> - Open setup panel
-• <b>/setup help</b> - View all setup commands
-• <b>/setup view</b> - View all current settings
-
-<b>📝 Quick Setup Commands:</b>
-• <code>/setup start_msg</code> - Edit welcome message
-• <code>/setup force_channel</code> - Set force sub channel
-• <code>/setup caption</code> - Set custom caption
-• <code>/setup autodel_time</code> - Set auto-delete timer
-• <code>/setup protect</code> - Toggle content protection
-• <code>/setup shortener</code> - Toggle URL shortener
-
-<b>🎯 File Sharing Workflow:</b>
-1️⃣ Forward files to bot privately
-2️⃣ Bot automatically creates shareable links
-3️⃣ Share links with users
-4️⃣ Users click links to get files
-
-<b>💡 Pro Tips:</b>
-• Use <code>/batch</code> for multiple files
-• Enable auto-delete for sensitive content
-• Use custom captions for branding
-• Enable URL shortener for cleaner links
-
-<b>🔗 Batch Link Format:</b>
-• Single: <code>?start=get-123456</code>
-• Batch: <code>?start=get-123456-123460</code>
-
-<i>For detailed setup guide, use /setup help</i>
-"""
-
-@Bot.on_message(filters.command('help') & filters.private)
-async def help_command(client: Client, message: Message):
-    """Show help based on user role"""
-    user_id = message.from_user.id
-    
-    # Check if user is admin
-    if user_id in [config.OWNER_ID] + config.ADMINS:
-        help_text = ADMIN_HELP_TEXT
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("⚙️ Setup Panel", callback_data="open_setup"),
-                InlineKeyboardButton("📊 View Stats", callback_data="view_stats")
-            ],
-            [
-                InlineKeyboardButton("🔒 Close", callback_data="close_help")
-            ]
-        ])
-    else:
-        help_text = USER_HELP_TEXT
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔒 Close", callback_data="close_help")
-            ]
-        ])
-    
-    await message.reply_text(
-        help_text,
-        reply_markup=keyboard,
-        quote=True
-    )
-
-@Bot.on_callback_query(filters.regex(r'^open_setup$'))
-async def open_setup_callback(client: Bot, query):
-    """Open setup panel from help"""
-    if query.from_user.id not in [config.OWNER_ID] + config.ADMINS:
-        await query.answer("❌ Only admins can access setup!", show_alert=True)
-        return
-    
-    from plugins.setup_command import MAIN_MENU_TEXT, main_menu_keyboard
-    await query.message.edit_text(
-        MAIN_MENU_TEXT,
-        reply_markup=main_menu_keyboard()
-    )
-    await query.answer()
-
-@Bot.on_callback_query(filters.regex(r'^view_stats$'))
-async def view_stats_callback(client: Bot, query):
-    """View bot stats from help"""
-    if query.from_user.id not in [config.OWNER_ID] + config.ADMINS:
-        await query.answer("❌ Only admins can view stats!", show_alert=True)
-        return
-    
-    from datetime import datetime
-    from helper_func import get_readable_time
-    
-    users = await full_userbase()
-    now = datetime.now()
-    delta = now - client.uptime
-    time = get_readable_time(delta.seconds)
-    
-    BOT_STATS_TEXT = config.get_bot_stats_text()
-    stats_text = BOT_STATS_TEXT.format(uptime=time)
-    stats_text += f"\n\n<b>Total Users:</b> <code>{len(users)}</code>"
-    
-    await query.message.edit_text(
-        stats_text,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Help", callback_data="back_to_help")]
-        ])
-    )
-    await query.answer()
-
-@Bot.on_callback_query(filters.regex(r'^back_to_help$'))
-async def back_to_help_callback(client: Bot, query):
-    """Go back to help from stats"""
-    user_id = query.from_user.id
-    
-    if user_id in [config.OWNER_ID] + config.ADMINS:
-        help_text = ADMIN_HELP_TEXT
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("⚙️ Setup Panel", callback_data="open_setup"),
-                InlineKeyboardButton("📊 View Stats", callback_data="view_stats")
-            ],
-            [
-                InlineKeyboardButton("🔒 Close", callback_data="close_help")
-            ]
-        ])
-    else:
-        help_text = USER_HELP_TEXT
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔒 Close", callback_data="close_help")]
-        ])
-    
-    await query.message.edit_text(help_text, reply_markup=keyboard)
-    await query.answer()
-
-@Bot.on_callback_query(filters.regex(r'^close_help$'))
-async def close_help_callback(client: Bot, query):
-    """Close help message"""
-    await query.message.delete()
-    await query.answer("Help closed!")
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message: Message):
+    """Main start command for subscribed users"""
+    
+    # Check if db_channel exists
+    if not hasattr(client, 'db_channel') or client.db_channel is None:
+        await message.reply_text(
+            "❌ <b>Bot Configuration Error!</b>\n\n"
+            "Database channel not configured. Please contact admin.",
+            quote=True
+        )
+        return
+    
     id = message.from_user.id
     if not await present_user(id):
         try:
@@ -243,15 +75,8 @@ async def start_command(client: Client, message: Message):
 
         track_msgs = []
         
-        # Get dynamic config values
-        CUSTOM_CAPTION = config.get_custom_caption()
-        DISABLE_CHANNEL_BUTTON = config.get_disable_channel_button()
-        PROTECT_CONTENT = config.get_protect_content()
-        AUTO_DELETE_TIME = config.get_auto_delete_time()
-        AUTO_DELETE_MSG = config.get_auto_delete_msg()
-
         for msg in messages:
-            # Handle custom caption with blockquote support
+            # Handle custom caption
             if bool(CUSTOM_CAPTION) and bool(msg.document):
                 prev_caption = "" if not msg.caption else msg.caption.html
                 filename = msg.document.file_name
@@ -327,16 +152,9 @@ async def start_command(client: Client, message: Message):
 
         return
     else:
-        # Get dynamic config values
-        START_MSG = config.get_start_msg()
-        START_PIC = config.get_start_pic()
-        
         reply_markup = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("😊 About Me", callback_data="about"),
-                InlineKeyboardButton("📚 Help", callback_data="show_user_help")
-            ],
-            [
                 InlineKeyboardButton("🔒 Close", callback_data="close")
             ]
         ])
@@ -369,52 +187,15 @@ async def start_command(client: Client, message: Message):
             )
         return
 
-@Bot.on_callback_query(filters.regex(r'^show_user_help$'))
-async def show_user_help(client: Bot, query):
-    """Show help from start menu"""
-    await query.message.edit_text(
-        USER_HELP_TEXT,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")],
-            [InlineKeyboardButton("🔒 Close", callback_data="close")]
-        ])
-    )
-    await query.answer()
-
-@Bot.on_callback_query(filters.regex(r'^back_to_start$'))
-async def back_to_start(client: Bot, query):
-    """Go back to start message"""
-    START_MSG = config.get_start_msg()
-    
-    await query.message.edit_text(
-        START_MSG.format(
-            first=query.from_user.first_name,
-            last=query.from_user.last_name,
-            username=None if not query.from_user.username else '@' + query.from_user.username,
-            mention=query.from_user.mention,
-            id=query.from_user.id
-        ),
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("😊 About Me", callback_data="about"),
-                InlineKeyboardButton("📚 Help", callback_data="show_user_help")
-            ],
-            [
-                InlineKeyboardButton("🔒 Close", callback_data="close")
-            ]
-        ])
-    )
-    await query.answer()
 
 WAIT_MSG = "<b>Processing ...</b>"
 REPLY_ERROR = "<code>Use this command as a reply to any telegram message without any spaces.</code>"
 
+
 @Bot.on_message(filters.command('start') & filters.private)
 async def not_joined(client: Client, message: Message):
-    JOIN_REQUEST_ENABLE = config.get_join_request()
-    FORCE_SUB_CHANNEL = config.get_force_sub_channel()
-    FORCE_MSG = config.get_force_msg()
-
+    """Handle non-subscribed users"""
+    
     if bool(JOIN_REQUEST_ENABLE):
         invite = await client.create_chat_invite_link(
             chat_id=FORCE_SUB_CHANNEL,
@@ -422,7 +203,7 @@ async def not_joined(client: Client, message: Message):
         )
         ButtonUrl = invite.invite_link
     else:
-        ButtonUrl = client.invitelink
+        ButtonUrl = client.invitelink if hasattr(client, 'invitelink') and client.invitelink else f"https://t.me/your_channel"
 
     buttons = [
         [
@@ -455,14 +236,18 @@ async def not_joined(client: Client, message: Message):
         disable_web_page_preview=True
     )
 
-@Bot.on_message(filters.command('users') & filters.private & filters.user([config.OWNER_ID] + config.ADMINS))
+
+@Bot.on_message(filters.command('users') & filters.private & filters.user([OWNER_ID] + ADMINS))
 async def get_users(client: Bot, message: Message):
+    """Get total users count"""
     msg = await client.send_message(chat_id=message.chat.id, text=WAIT_MSG)
     users = await full_userbase()
     await msg.edit(f"{len(users)} users are using this bot")
 
-@Bot.on_message(filters.private & filters.command('broadcast') & filters.user([config.OWNER_ID] + config.ADMINS))
+
+@Bot.on_message(filters.private & filters.command('broadcast') & filters.user([OWNER_ID] + ADMINS))
 async def send_text(client: Bot, message: Message):
+    """Broadcast message to all users"""
     if message.reply_to_message:
         query = await full_userbase()
         broadcast_msg = message.reply_to_message
@@ -492,7 +277,6 @@ async def send_text(client: Bot, message: Message):
                 pass
             total += 1
         
-        newline = "\n"
         status = f"""<b><u>Broadcast Completed</u>
 
 Total Users: <code>{total}</code>

@@ -1,13 +1,24 @@
-#(©)Codexbotz
+# plugins/link_generator.py - Fixed version
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from bot import Bot
 from config import OWNER_ID, ADMINS
-from helper_func import encode, get_message_id, shorten_url
+from helper_func import encode, get_message_id
 
 @Bot.on_message(filters.private & filters.user([OWNER_ID] + ADMINS) & filters.command('batch'))
 async def batch(client: Client, message: Message):
+    """Create batch link for multiple messages"""
+    
+    # Check if db_channel exists
+    if not hasattr(client, 'db_channel') or client.db_channel is None:
+        await message.reply_text(
+            "❌ <b>Database Channel Not Configured!</b>\n\n"
+            "Please restart the bot or contact admin.",
+            quote=True
+        )
+        return
+    
     while True:
         try:
             first_message = await client.ask(
@@ -18,6 +29,7 @@ async def batch(client: Client, message: Message):
             )
         except:
             return
+        
         f_msg_id = await get_message_id(client, first_message)
         if f_msg_id:
             break
@@ -38,6 +50,7 @@ async def batch(client: Client, message: Message):
             )
         except:
             return
+        
         s_msg_id = await get_message_id(client, second_message)
         if s_msg_id:
             break
@@ -52,9 +65,6 @@ async def batch(client: Client, message: Message):
     base64_string = await encode(string)
     link = f"https://t.me/{client.username}?start={base64_string}"
     
-    # Try to shorten URL
-    shortened_link = await shorten_url(link)
-    
     # Calculate message count
     msg_count = abs(s_msg_id - f_msg_id) + 1
     
@@ -67,13 +77,13 @@ async def batch(client: Client, message: Message):
 └ <b>End ID:</b> <code>{s_msg_id}</code>
 
 <b>🔗 Your Link:</b>
-<code>{shortened_link if shortened_link != link else link}</code>
+<code>{link}</code>
 
 <b>💡 Share this link to give access to all files!</b>
 """
     
     reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔁 Share URL", url=f'https://telegram.me/share/url?url={shortened_link}')]
+        [InlineKeyboardButton("🔁 Share URL", url=f'https://telegram.me/share/url?url={link}')]
     ])
     
     await second_message.reply_text(
@@ -86,6 +96,17 @@ async def batch(client: Client, message: Message):
 
 @Bot.on_message(filters.private & filters.user([OWNER_ID] + ADMINS) & filters.command('genlink'))
 async def link_generator(client: Client, message: Message):
+    """Generate single file link"""
+    
+    # Check if db_channel exists
+    if not hasattr(client, 'db_channel') or client.db_channel is None:
+        await message.reply_text(
+            "❌ <b>Database Channel Not Configured!</b>\n\n"
+            "Please restart the bot or contact admin.",
+            quote=True
+        )
+        return
+    
     while True:
         try:
             channel_message = await client.ask(
@@ -96,6 +117,7 @@ async def link_generator(client: Client, message: Message):
             )
         except:
             return
+        
         msg_id = await get_message_id(client, channel_message)
         if msg_id:
             break
@@ -109,9 +131,6 @@ async def link_generator(client: Client, message: Message):
     base64_string = await encode(f"get-{msg_id * abs(client.db_channel.id)}")
     link = f"https://t.me/{client.username}?start={base64_string}"
     
-    # Try to shorten URL
-    shortened_link = await shorten_url(link)
-    
     reply_text = f"""
 ✅ <b>Single File Link Generated!</b>
 
@@ -119,13 +138,13 @@ async def link_generator(client: Client, message: Message):
 └ <b>Message ID:</b> <code>{msg_id}</code>
 
 <b>🔗 Your Link:</b>
-<code>{shortened_link if shortened_link != link else link}</code>
+<code>{link}</code>
 
 <b>💡 Share this link to give access to the file!</b>
 """
     
     reply_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔁 Share URL", url=f'https://telegram.me/share/url?url={shortened_link}')]
+        [InlineKeyboardButton("🔁 Share URL", url=f'https://telegram.me/share/url?url={link}')]
     ])
     
     await channel_message.reply_text(

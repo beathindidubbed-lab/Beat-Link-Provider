@@ -5,6 +5,8 @@ from pyrogram import idle
 async def main():
     app = Bot()
     await app.start()
-    await idle()
+    await idle() # Keeps bot alive
+    await app.stop()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

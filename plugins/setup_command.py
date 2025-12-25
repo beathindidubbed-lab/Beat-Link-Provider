@@ -1438,7 +1438,7 @@ async def set_handler(client: Bot, query: CallbackQuery):
 # VIEW ALL SETTINGS
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^view_all))
+@Bot.on_callback_query(filters.regex(r'^view_all'))  
 async def view_all_settings(client: Bot, query: CallbackQuery):
     """Display all current settings"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1518,7 +1518,7 @@ async def view_all_settings(client: Bot, query: CallbackQuery):
 # BACKUP & RESTORE
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^backup_config))
+@Bot.on_callback_query(filters.regex(r'^backup_config'))  # Added missing closing quote
 async def backup_config(client: Bot, query: CallbackQuery):
     """Backup all settings"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1551,7 +1551,7 @@ async def backup_config(client: Bot, query: CallbackQuery):
     except Exception as e:
         await query.answer(f"❌ Backup failed: {str(e)}", show_alert=True)
 
-@Bot.on_callback_query(filters.regex(r'^restore_config))
+@Bot.on_callback_query(filters.regex(r'^restore_config'))  # Added missing closing quote
 async def restore_config(client: Bot, query: CallbackQuery):
     """Restore settings from backup"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1602,9 +1602,9 @@ async def restore_config(client: Bot, query: CallbackQuery):
 # RESET CONFIRMATION
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^confirm_reset))
-async def confirm_reset(client: Bot, query: CallbackQuery):
-    """Confirm reset action"""
+@Bot.on_callback_query(filters.regex(r'^restore_config'))  # Added missing closing quote
+async def restore_config(client: Bot, query: CallbackQuery):
+    """Restore settings from backup"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
         await query.answer("❌ Only admins can use this!", show_alert=True)
         return
@@ -1626,7 +1626,7 @@ async def confirm_reset(client: Bot, query: CallbackQuery):
     )
     await query.answer()
 
-@Bot.on_callback_query(filters.regex(r'^do_reset))
+@Bot.on_callback_query(filters.regex(r'^do_reset'))  # Added missing closing quote
 async def do_reset(client: Bot, query: CallbackQuery):
     """Actually perform the reset"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1651,7 +1651,7 @@ async def do_reset(client: Bot, query: CallbackQuery):
 # SHOW HELP
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^show_help))
+@Bot.on_callback_query(filters.regex(r'^show_help'))  # Added missing closing quote
 async def show_help(client: Bot, query: CallbackQuery):
     """Show help menu"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1670,7 +1670,7 @@ async def show_help(client: Bot, query: CallbackQuery):
 # UTILITY HANDLERS
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^close_panel))
+@Bot.on_callback_query(filters.regex(r'^close_panel'))  # Added missing closing quote
 async def close_panel(client: Bot, query: CallbackQuery):
     """Close the setup panel"""
     if query.from_user.id not in [OWNER_ID] + ADMINS:
@@ -1680,7 +1680,7 @@ async def close_panel(client: Bot, query: CallbackQuery):
     await query.message.delete()
     await query.answer("Setup panel closed!", show_alert=False)
 
-@Bot.on_callback_query(filters.regex(r'^noop))
+@Bot.on_callback_query(filters.regex(r'^noop'))  # Added missing closing quote
 async def noop_handler(client: Bot, query: CallbackQuery):
     """No operation - just answer the query"""
     await query.answer()

@@ -1,4 +1,4 @@
-# bot.py - FIXED VERSION with proper channel initialization
+# bot.py - Version with retry logic for Railway
 
 from aiohttp import web
 from plugins import web_server
@@ -6,7 +6,9 @@ from plugins import web_server
 import pyromod.listen
 from pyrogram import Client
 from pyrogram.enums import ParseMode
+from pyrogram.errors import PeerIdInvalid, ChannelInvalid, FloodWait
 import sys
+import asyncio
 from datetime import datetime
 
 from config import API_HASH, APP_ID, LOGGER, TG_BOT_TOKEN, TG_BOT_WORKERS, FORCE_SUB_CHANNEL, CHANNEL_ID, PORT
@@ -47,44 +49,75 @@ class Bot(Client):
             print(f"🆔 Bot ID: {usr_bot_me.id}")
             print("=" * 50)
 
-            # CRITICAL FIX: Access database channel FIRST to populate peer cache
-            try:
-                print(f"🔍 Checking Database Channel: {CHANNEL_ID}")
-                
-                # Method 1: Try to get chat directly
-                db_channel = await self.get_chat(CHANNEL_ID)
-                self.db_channel = db_channel
-                
-                print(f"✅ Database Channel Found: {db_channel.title}")
-                
-                # Test sending and deleting message
+            # RETRY LOGIC for database channel
+            max_retries = 3
+            retry_delay = 5
+            
+            for attempt in range(1, max_retries + 1):
                 try:
-                    test = await self.send_message(chat_id=CHANNEL_ID, text="✅ Bot Started - Connection Test")
-                    await test.delete()
-                    print(f"✅ Bot can send/delete messages in DB channel")
-                except Exception as e:
-                    print(f"⚠️ Warning: Could not test message send/delete: {e}")
-                    print(f"⚠️ Make sure bot has proper admin permissions")
+                    print(f"🔍 Attempt {attempt}/{max_retries}: Checking Database Channel: {CHANNEL_ID}")
+                    
+                    # Wait a moment for Telegram to sync
+                    if attempt > 1:
+                        print(f"⏳ Waiting {retry_delay} seconds before retry...")
+                        await asyncio.sleep(retry_delay)
+                    
+                    db_channel = await self.get_chat(CHANNEL_ID)
+                    self.db_channel = db_channel
+                    
+                    print(f"✅ Database Channel Found: {db_channel.title}")
+                    
+                    # Test sending and deleting message
+                    try:
+                        test = await self.send_message(chat_id=CHANNEL_ID, text="✅ Bot Connected - Test Message")
+                        await asyncio.sleep(1)
+                        await test.delete()
+                        print(f"✅ Bot can send/delete messages in DB channel")
+                    except Exception as e:
+                        print(f"⚠️ Warning: Could not test message: {e}")
+                    
+                    # If we got here, channel access is working
+                    break
+                    
+                except (PeerIdInvalid, ChannelInvalid) as e:
+                    if attempt == max_retries:
+                        self.LOGGER(__name__).error(f"Database Channel Error after {max_retries} attempts: {e}")
+                        print("=" * 50)
+                        print("❌ DATABASE CHANNEL ERROR!")
+                        print(f"❌ Channel ID: {CHANNEL_ID}")
+                        print(f"❌ Error: {e}")
+                        print("=" * 50)
+                        print("⚠️ CRITICAL: Bot cannot access DB Channel")
+                        print("⚠️ POSSIBLE CAUSES:")
+                        print("1. Bot was just added - Telegram needs time to sync")
+                        print("2. Session is cached - try redeploying")
+                        print("3. Channel ID is incorrect")
+                        print("4. Bot is not actually in the channel")
+                        print("=" * 50)
+                        print("⚠️ SOLUTIONS:")
+                        print("1. Wait 5-10 minutes after adding bot")
+                        print("2. Redeploy on Railway to get fresh session")
+                        print("3. Double-check channel ID with @userinfobot")
+                        print("4. Remove bot from channel, then add again")
+                        print("=" * 50)
+                        sys.exit()
+                    else:
+                        print(f"⚠️ Channel not accessible yet, retrying...")
+                        continue
                 
-            except Exception as e:
-                self.LOGGER(__name__).error(f"Database Channel Error: {e}")
-                print("=" * 50)
-                print("❌ DATABASE CHANNEL ERROR!")
-                print(f"❌ Channel ID: {CHANNEL_ID}")
-                print(f"❌ Error: {e}")
-                print("=" * 50)
-                print("⚠️ CRITICAL: Bot cannot work without DB Channel")
-                print("⚠️ SOLUTIONS:")
-                print("1. Verify channel ID is correct (use @userinfobot)")
-                print("2. Make sure bot is ADDED to the channel first")
-                print("3. Make bot admin with all permissions")
-                print("4. Restart bot after adding to channel")
-                print("5. Try /verify command to diagnose issues")
-                print("=" * 50)
-                self.LOGGER(__name__).info("\n⚠️ Bot Stopped. Join https://t.me/CodeXBotzSupport for support")
-                sys.exit()
+                except FloodWait as e:
+                    print(f"⏳ FloodWait: Waiting {e.x} seconds...")
+                    await asyncio.sleep(e.x)
+                    continue
+                
+                except Exception as e:
+                    if attempt == max_retries:
+                        self.LOGGER(__name__).error(f"Unexpected error: {e}")
+                        print(f"❌ Unexpected error: {e}")
+                        sys.exit()
+                    continue
 
-            # Check Force Sub Channel (AFTER database channel is working)
+            # Check Force Sub Channel
             if FORCE_SUB_CHANNEL and FORCE_SUB_CHANNEL != 0:
                 try:
                     print(f"🔍 Checking Force Subscribe Channel: {FORCE_SUB_CHANNEL}")
@@ -99,35 +132,21 @@ class Bot(Client):
                         self.invitelink = link
                         print(f"✅ Invite Link: {link[:50]}...")
                     except Exception as link_error:
-                        self.LOGGER(__name__).warning(f"Could not get invite link: {link_error}")
                         self.invitelink = None
-                        print(f"⚠️ Bot cannot create invite link")
-                        print(f"⚠️ Enable 'Invite Users via Link' permission")
+                        print(f"⚠️ Could not create invite link: {link_error}")
                         
                 except Exception as e:
-                    self.LOGGER(__name__).error(f"Force Sub Channel Error: {e}")
-                    print("=" * 50)
-                    print("❌ FORCE SUBSCRIBE CHANNEL ERROR!")
-                    print(f"❌ Channel ID: {FORCE_SUB_CHANNEL}")
-                    print(f"❌ Error: {e}")
-                    print("=" * 50)
-                    print("⚠️ SOLUTIONS:")
-                    print("1. Check if FORCE_SUB_CHANNEL ID is correct")
-                    print("2. Add bot to force sub channel")
-                    print("3. Make bot admin with 'Invite Users' permission")
-                    print("4. Or set FORCE_SUB_CHANNEL=0 to disable")
-                    print("=" * 50)
                     self.invitelink = None
+                    print(f"⚠️ Force Sub Channel error: {e}")
                     print("⚠️ Bot will continue without force subscribe")
             else:
                 self.invitelink = None
                 print("📢 Force Subscribe: Disabled")
 
             self.set_parse_mode(ParseMode.HTML)
-            self.LOGGER(__name__).info(f"Bot Running..!\n\nCreated by \nhttps://t.me/CodeXBotz")
+            self.LOGGER(__name__).info(f"Bot Running..!")
             print(ascii_art)
-            print("Welcome to CodeXBotz File Sharing Bot")
-            print(f"Bot is ready to receive messages!")
+            print("Bot is ready!")
             print("=" * 50)
             
             # Start web server
@@ -137,13 +156,11 @@ class Bot(Client):
                 bind_address = "0.0.0.0"
                 await web.TCPSite(app, bind_address, PORT).start()
                 print(f"✅ Web server started on port {PORT}")
-                print("=" * 50)
             except Exception as e:
-                print(f"⚠️ Web server error (non-critical): {e}")
+                print(f"⚠️ Web server error: {e}")
             
         except Exception as e:
-            self.LOGGER(__name__).error(f"❌ Error during startup: {e}")
-            print(f"❌ STARTUP ERROR: {e}")
+            self.LOGGER(__name__).error(f"❌ Startup error: {e}")
             import traceback
             traceback.print_exc()
             sys.exit()
@@ -151,4 +168,3 @@ class Bot(Client):
     async def stop(self, *args):
         await super().stop()
         self.LOGGER(__name__).info("Bot stopped.")
-        print("👋 Bot stopped gracefully")

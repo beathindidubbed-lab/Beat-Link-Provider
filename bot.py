@@ -1,4 +1,4 @@
-#(©)Codexbotz
+# bot.py - FIXED VERSION with better error handling
 
 from aiohttp import web
 from plugins import web_server
@@ -46,30 +46,74 @@ class Bot(Client):
             print(f"🆔 Bot ID: {usr_bot_me.id}")
             print("=" * 50)
 
-            if FORCE_SUB_CHANNEL:
+            # Check Force Sub Channel (with better error handling)
+            if FORCE_SUB_CHANNEL and FORCE_SUB_CHANNEL != 0:
                 try:
-                    link = (await self.get_chat(FORCE_SUB_CHANNEL)).invite_link
-                    if not link:
-                        await self.export_chat_invite_link(FORCE_SUB_CHANNEL)
-                        link = (await self.get_chat(FORCE_SUB_CHANNEL)).invite_link
-                    self.invitelink = link
-                    print(f"✅ Force Sub Channel Connected: {FORCE_SUB_CHANNEL}")
-                except Exception as a:
-                    self.LOGGER(__name__).warning(a)
-                    self.LOGGER(__name__).warning("Bot can't Export Invite link from Force Sub Channel!")
-                    self.LOGGER(__name__).warning(f"Please Double check the FORCE_SUB_CHANNEL value and Make sure Bot is Admin in channel with Invite Users via Link Permission, Current Force Sub Channel Value: {FORCE_SUB_CHANNEL}")
-                    self.LOGGER(__name__).info("\n⚠️ Bot Stopped. Join https://t.me/CodeXBotzSupport for support")
-                    sys.exit()
+                    # Try to get channel info
+                    force_channel = await self.get_chat(FORCE_SUB_CHANNEL)
+                    print(f"📢 Force Sub Channel: {force_channel.title} ({FORCE_SUB_CHANNEL})")
+                    
+                    # Try to get invite link
+                    try:
+                        link = force_channel.invite_link
+                        if not link:
+                            link = await self.export_chat_invite_link(FORCE_SUB_CHANNEL)
+                        self.invitelink = link
+                        print(f"✅ Force Sub Invite Link: {link[:50]}...")
+                    except Exception as link_error:
+                        self.LOGGER(__name__).warning(f"Could not get invite link: {link_error}")
+                        self.invitelink = None
+                        print(f"⚠️ Warning: Bot cannot create invite link")
+                        print(f"⚠️ Make sure bot has 'Invite Users via Link' permission")
+                        
+                except Exception as e:
+                    self.LOGGER(__name__).error(f"Force Sub Channel Error: {e}")
+                    print("=" * 50)
+                    print("❌ FORCE SUBSCRIBE CHANNEL ERROR!")
+                    print(f"❌ Error: {e}")
+                    print(f"❌ Channel ID: {FORCE_SUB_CHANNEL}")
+                    print("=" * 50)
+                    print("⚠️ SOLUTIONS:")
+                    print("1. Check if FORCE_SUB_CHANNEL ID is correct")
+                    print("2. Make sure bot is added to the channel")
+                    print("3. Make bot admin with 'Invite Users' permission")
+                    print("4. Or set FORCE_SUB_CHANNEL=0 to disable")
+                    print("=" * 50)
+                    
+                    # Continue running but set invitelink to None
+                    self.invitelink = None
+                    print("⚠️ Bot will continue but force subscribe won't work")
+            else:
+                self.invitelink = None
+                print("📢 Force Subscribe: Disabled")
             
+            # Check Database Channel
             try:
                 db_channel = await self.get_chat(CHANNEL_ID)
                 self.db_channel = db_channel
-                test = await self.send_message(chat_id=db_channel.id, text="Test Message")
+                
+                # Test sending message
+                test = await self.send_message(chat_id=db_channel.id, text="✅ Bot Started - Test Message")
                 await test.delete()
-                print(f"✅ Database Channel Connected: {db_channel.title} ({CHANNEL_ID})")
+                
+                print(f"✅ Database Channel: {db_channel.title} ({CHANNEL_ID})")
+                print(f"✅ Bot can send/delete messages")
+                
             except Exception as e:
-                self.LOGGER(__name__).warning(e)
-                self.LOGGER(__name__).warning(f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}")
+                self.LOGGER(__name__).error(f"Database Channel Error: {e}")
+                print("=" * 50)
+                print("❌ DATABASE CHANNEL ERROR!")
+                print(f"❌ Error: {e}")
+                print(f"❌ Channel ID: {CHANNEL_ID}")
+                print("=" * 50)
+                print("⚠️ CRITICAL: Bot cannot work without DB Channel")
+                print("⚠️ SOLUTIONS:")
+                print("1. Create a private channel")
+                print("2. Add bot to channel")
+                print("3. Make bot admin with all permissions")
+                print("4. Get channel ID (forward message to @userinfobot)")
+                print("5. Set CHANNEL_ID in environment variables")
+                print("=" * 50)
                 self.LOGGER(__name__).info("\n⚠️ Bot Stopped. Join https://t.me/CodeXBotzSupport for support")
                 sys.exit()
 
@@ -82,13 +126,16 @@ class Bot(Client):
             
             self.username = usr_bot_me.username
             
-            # Web response
-            app = web.AppRunner(await web_server())
-            await app.setup()
-            bind_address = "0.0.0.0"
-            await web.TCPSite(app, bind_address, PORT).start()
-            print(f"✅ Web server started on port {PORT}")
-            print("=" * 50)
+            # Start web server
+            try:
+                app = web.AppRunner(await web_server())
+                await app.setup()
+                bind_address = "0.0.0.0"
+                await web.TCPSite(app, bind_address, PORT).start()
+                print(f"✅ Web server started on port {PORT}")
+                print("=" * 50)
+            except Exception as e:
+                print(f"⚠️ Web server error (non-critical): {e}")
             
         except Exception as e:
             self.LOGGER(__name__).error(f"❌ Error during startup: {e}")

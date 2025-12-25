@@ -2,11 +2,14 @@ import asyncio
 from bot import Bot
 from pyrogram import idle
 
-async def main():
+async def start_services():
     app = Bot()
-    await app.start()
-    await idle() # Keeps bot alive
+    await app.start() # This starts the channel check in bot.py
+    await idle()      # Keeps the bot listening for messages
     await app.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(start_services())
+    except KeyboardInterrupt:
+        pass

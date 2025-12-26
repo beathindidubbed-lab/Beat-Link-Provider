@@ -1,5 +1,5 @@
-# plugins/setup_command.py
-# (©)CodeXBotz - Advanced Interactive Setup Panel with Command Support
+# plugins/setup_panel_new.py
+# Beautiful working setup panel with all fixes
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -7,1701 +7,572 @@ from bot import Bot
 from config import OWNER_ID, ADMINS
 from database.database import get_setting, update_setting
 import asyncio
-from typing import Optional
 
 # ===========================
-# MENU CONSTANTS
+# BEAUTIFUL MENUS
 # ===========================
 
-MAIN_MENU_TEXT = """
-╔═══════════════════════════╗
-║  🎛️ <b>BOT SETUP PANEL</b> 🎛️  ║
-╚═══════════════════════════╝
+MAIN_MENU = """
+╔════════════════════════════════╗
+║   🎛️ <b>BOT CONTROL PANEL</b> 🎛️   ║
+╚════════════════════════════════╝
 
-<b>Welcome to the Advanced Configuration Panel!</b>
+<b>Welcome to the Setup Panel!</b>
 
 Choose a category to configure:
 
-🎨 <b>Appearance</b> - Start messages & images
-📢 <b>Force Subscribe</b> - Channel join settings
-📝 <b>Captions & Replies</b> - Custom messages
-🔒 <b>Protection</b> - Content security settings
-⏱️ <b>Auto Delete</b> - Automatic file deletion
-🔗 <b>URL Shortener</b> - Configure link shortening
-⚙️ <b>Advanced</b> - Other bot settings
+🎨 <b>Appearance</b>
+   Customize welcome messages & images
+
+📢 <b>Channels</b>
+   Configure DB & Force Subscribe channels
+
+📝 <b>Messages</b>
+   Set custom captions & replies
+
+🔒 <b>Protection</b>
+   Content security settings
+
+⏱️ <b>Auto Delete</b>
+   Automatic file cleanup
+
+🔗 <b>URL Shortener</b>
+   Link shortening configuration
 
 <b>💡 Quick Commands:</b>
-<code>/setup start_msg</code> - Edit start message
-<code>/setup force_channel</code> - Set channel ID
-<code>/setup view</code> - View all settings
-<code>/setup help</code> - Show all commands
+<code>/setchannel db</code> - Set DB channel
+<code>/setchannel force</code> - Set force sub
+<code>/viewchannels</code> - View channels
 
-<b>Current Status:</b> ✅ All systems operational
+<b>Status:</b> ✅ All systems ready
 """
 
-HELP_TEXT = """
-📚 <b>SETUP COMMAND GUIDE</b>
-
-<b>🎨 Appearance Commands:</b>
-• <code>/setup start_msg</code> - Edit welcome message
-• <code>/setup start_pic</code> - Edit welcome image
-• <code>/setup stats_text</code> - Edit stats format
-
-<b>📢 Force Subscribe Commands:</b>
-• <code>/setup force_channel</code> - Set channel ID
-• <code>/setup force_msg</code> - Edit force message
-• <code>/setup join_request</code> - Toggle join mode
-
-<b>📝 Caption Commands:</b>
-• <code>/setup caption</code> - Set custom caption
-• <code>/setup user_reply</code> - Set auto-reply
-
-<b>🔒 Protection Commands:</b>
-• <code>/setup protect</code> - Toggle content protection
-• <code>/setup channel_btn</code> - Toggle share button
-
-<b>⏱️ Auto Delete Commands:</b>
-• <code>/setup autodel_time</code> - Set delete timer
-• <code>/setup autodel_msg</code> - Set warning message
-• <code>/setup autodel_success</code> - Set success message
-
-<b>🔗 URL Shortener Commands:</b>
-• <code>/setup shortener</code> - Toggle shortener
-• <code>/setup shortener_api</code> - Set API key
-• <code>/setup shortener_site</code> - Set site URL
-
-<b>⚙️ Advanced Commands:</b>
-• <code>/setup view</code> - View all settings
-• <code>/setup backup</code> - Backup configuration
-• <code>/setup restore</code> - Restore from backup
-• <code>/setup reset</code> - Reset to defaults
-
-<b>Usage Examples:</b>
-<code>/setup</code> - Open interactive panel
-<code>/setup start_msg</code> - Direct command
-<code>/setup view all</code> - View settings
-"""
-
-APPEARANCE_MENU = """
-🎨 <b>APPEARANCE SETTINGS</b>
-
-Configure how your bot greets users:
-
-• <b>Start Message</b> - Welcome text
-• <b>Start Picture</b> - Welcome image URL
-• <b>Bot Stats Text</b> - /stats command format
-
-<i>Tip: Use placeholders like {first}, {username}, {mention}</i>
-"""
-
-FORCE_SUB_MENU = """
-📢 <b>FORCE SUBSCRIBE SETTINGS</b>
-
-Control channel subscription requirements:
-
-• <b>Force Channel ID</b> - Required channel
-• <b>Force Sub Message</b> - Subscribe prompt
-• <b>Join Request Mode</b> - Enable/Disable
-
-<i>Current Channel:</i> <code>{channel}</code>
-<i>Join Request:</i> <code>{join_req}</code>
-"""
-
-CAPTIONS_MENU = """
-📝 <b>CAPTIONS & REPLIES</b>
-
-Customize bot responses:
-
-• <b>Custom Caption</b> - File captions
-• <b>User Reply Text</b> - DM auto-reply
-
-<i>Use {filename} and {previouscaption} in captions</i>
-<i>Block quotes are supported in captions!</i>
-"""
-
-PROTECTION_MENU = """
-🔒 <b>PROTECTION SETTINGS</b>
-
-Secure your content:
-
-• <b>Protect Content</b> - Prevent forwarding
-• <b>Channel Button</b> - Show/hide share button
-
-<i>Current Protection:</i> <code>{protect}</code>
-<i>Channel Button:</i> <code>{button}</code>
-"""
-
-AUTO_DELETE_MENU = """
-⏱️ <b>AUTO DELETE SETTINGS</b>
-
-Configure automatic file deletion:
-
-• <b>Delete Time</b> - Seconds until deletion
-• <b>Delete Message</b> - Warning text
-• <b>Success Message</b> - Confirmation text
-
-<i>Current Timer:</i> <code>{time}s</code> ({mins} min)
-<i>Status:</i> <code>{status}</code>
-"""
-
-SHORTENER_MENU = """
-🔗 <b>URL SHORTENER SETTINGS</b>
-
-Configure link shortening service:
-
-• <b>Toggle Shortener</b> - Enable/Disable
-• <b>API Key</b> - Your shortener API
-• <b>Site URL</b> - Shortener website
-
-<i>Current Status:</i> <code>{status}</code>
-<i>Supported: Linkvertise, Shorte.st, GPLinks</i>
-"""
-
-ADVANCED_MENU = """
-⚙️ <b>ADVANCED SETTINGS</b>
-
-Additional configuration options:
-
-• <b>View All Settings</b> - Complete overview
-• <b>Reset to Defaults</b> - Clear all settings
-• <b>Backup Settings</b> - Export configuration
-
-<i>Use these options carefully!</i>
-"""
-
-# ===========================
-# KEYBOARD BUILDERS
-# ===========================
-
-def main_menu_keyboard():
+def main_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎨 Appearance", callback_data="menu_appearance"),
-            InlineKeyboardButton("📢 Force Sub", callback_data="menu_forcesub")
+            InlineKeyboardButton("🎨 Appearance", callback_data="setup_appearance"),
+            InlineKeyboardButton("📢 Channels", callback_data="setup_channels")
         ],
         [
-            InlineKeyboardButton("📝 Captions", callback_data="menu_captions"),
-            InlineKeyboardButton("🔒 Protection", callback_data="menu_protection")
+            InlineKeyboardButton("📝 Messages", callback_data="setup_messages"),
+            InlineKeyboardButton("🔒 Protection", callback_data="setup_protection")
         ],
         [
-            InlineKeyboardButton("⏱️ Auto Delete", callback_data="menu_autodelete"),
-            InlineKeyboardButton("🔗 Shortener", callback_data="menu_shortener")
+            InlineKeyboardButton("⏱️ Auto Delete", callback_data="setup_autodelete"),
+            InlineKeyboardButton("🔗 Shortener", callback_data="setup_shortener")
         ],
         [
-            InlineKeyboardButton("⚙️ Advanced", callback_data="menu_advanced")
+            InlineKeyboardButton("👁️ View All", callback_data="setup_viewall"),
+            InlineKeyboardButton("❓ Help", callback_data="setup_help")
         ],
         [
-            InlineKeyboardButton("📊 View All Settings", callback_data="view_all"),
-            InlineKeyboardButton("📚 Help", callback_data="show_help")
-        ],
-        [
-            InlineKeyboardButton("🔄 Refresh", callback_data="menu_main"),
-            InlineKeyboardButton("❌ Close", callback_data="close_panel")
-        ]
-    ])
-
-def appearance_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("💬 Start Message", callback_data="edit_start_msg"),
-            InlineKeyboardButton("🖼️ Start Picture", callback_data="edit_start_pic")
-        ],
-        [
-            InlineKeyboardButton("📊 Stats Text", callback_data="edit_stats_text")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def forcesub_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🆔 Channel ID", callback_data="edit_force_channel"),
-            InlineKeyboardButton("💬 Force Message", callback_data="edit_force_msg")
-        ],
-        [
-            InlineKeyboardButton("🔄 Join Request", callback_data="toggle_join_request")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def captions_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📄 Custom Caption", callback_data="edit_caption"),
-            InlineKeyboardButton("💭 User Reply", callback_data="edit_user_reply")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def protection_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🔒 Protect Content", callback_data="toggle_protect"),
-            InlineKeyboardButton("🔘 Channel Button", callback_data="toggle_channel_btn")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def autodelete_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("⏱️ Delete Time", callback_data="edit_autodel_time"),
-            InlineKeyboardButton("💬 Delete Message", callback_data="edit_autodel_msg")
-        ],
-        [
-            InlineKeyboardButton("✅ Success Message", callback_data="edit_autodel_success")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def shortener_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🔄 Toggle Shortener", callback_data="toggle_shortener"),
-        ],
-        [
-            InlineKeyboardButton("🔑 API Key", callback_data="edit_shortener_api"),
-            InlineKeyboardButton("🌐 Site URL", callback_data="edit_shortener_site")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def advanced_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👁️ View All", callback_data="view_all"),
-            InlineKeyboardButton("🔄 Reset All", callback_data="confirm_reset")
-        ],
-        [
-            InlineKeyboardButton("💾 Backup Config", callback_data="backup_config"),
-            InlineKeyboardButton("📥 Restore Config", callback_data="restore_config")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-        ]
-    ])
-
-def back_keyboard(menu: str = "main"):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back", callback_data=f"menu_{menu}")]
-    ])
-
-def toggle_keyboard(current_value: bool, callback_prefix: str):
-    status = "✅ Enabled" if current_value else "❌ Disabled"
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                f"Currently: {status}",
-                callback_data="noop"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "✅ Enable" if not current_value else "✅ Enabled ✓",
-                callback_data=f"{callback_prefix}_true" if not current_value else "noop"
-            ),
-            InlineKeyboardButton(
-                "❌ Disable" if current_value else "❌ Disabled ✓",
-                callback_data=f"{callback_prefix}_false" if current_value else "noop"
-            )
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="menu_main")
+            InlineKeyboardButton("🔄 Refresh", callback_data="setup_main"),
+            InlineKeyboardButton("❌ Close", callback_data="setup_close")
         ]
     ])
 
 # ===========================
-# HELPER FUNCTIONS
-# ===========================
-
-async def safe_get_setting(key: str, default=None):
-    """Safely get a setting with error handling"""
-    try:
-        return get_setting(key, default)
-    except Exception as e:
-        print(f"Error getting setting {key}: {e}")
-        return default
-
-async def safe_update_setting(key: str, value):
-    """Safely update a setting with error handling"""
-    try:
-        update_setting(key, value)
-        return True
-    except Exception as e:
-        print(f"Error updating setting {key}: {e}")
-        return False
-
-async def get_force_sub_info():
-    """Get formatted force sub information"""
-    channel_id = await safe_get_setting('force_channel', '0')
-    join_req = await safe_get_setting('join_request', 'False')
-    return channel_id, join_req
-
-async def get_protection_info():
-    """Get formatted protection information"""
-    protect = await safe_get_setting('protect_content', 'False')
-    button = await safe_get_setting('disable_channel_button', 'False')
-    return protect, button
-
-async def get_autodelete_info():
-    """Get formatted auto-delete information"""
-    time = await safe_get_setting('auto_delete_time', '0')
-    try:
-        time_int = int(time)
-        mins = time_int // 60
-        status = "✅ Enabled" if time_int > 0 else "❌ Disabled"
-        return time, mins, status
-    except:
-        return '0', 0, "❌ Disabled"
-
-async def get_shortener_info():
-    """Get formatted shortener information"""
-    enabled = await safe_get_setting('shortener_enabled', 'False')
-    status = "✅ Enabled" if enabled == 'True' else "❌ Disabled"
-    return status
-
-async def listen_for_input(client: Client, chat_id: int, timeout: int = 120) -> Optional[Message]:
-    """Listen for user input with timeout and cancellation"""
-    try:
-        response = await client.listen(chat_id, timeout=timeout)
-        if response.text and response.text.lower() in ['cancel', '/cancel', 'stop', '/stop']:
-            return None
-        return response
-    except asyncio.TimeoutError:
-        return None
-
-# ===========================
-# COMMAND PARSER
-# ===========================
-
-def parse_setup_command(text: str):
-    """Parse setup command and return command type"""
-    parts = text.split(maxsplit=2)
-    if len(parts) == 1:
-        return None, None
-    elif len(parts) == 2:
-        return parts[1].lower(), None
-    else:
-        return parts[1].lower(), parts[2]
-
-# ===========================
-# MAIN COMMAND HANDLERS
+# MAIN COMMAND
 # ===========================
 
 @Bot.on_message(filters.command('setup') & filters.private & filters.user([OWNER_ID] + ADMINS))
-async def setup_command(client: Bot, message: Message):
-    """Main setup command handler - supports both panel and direct commands"""
-    try:
-        command, arg = parse_setup_command(message.text)
-        
-        if command is None:
-            await message.reply_text(
-                MAIN_MENU_TEXT,
-                reply_markup=main_menu_keyboard(),
-                quote=True
-            )
-            return
-        
-        if command in ['help', 'commands', '?']:
-            await message.reply_text(HELP_TEXT, quote=True)
-            return
-        
-        if command in ['view', 'show', 'list']:
-            await show_all_settings_command(client, message)
-            return
-        
-        if command in ['backup', 'export']:
-            await backup_config_command(client, message)
-            return
-        
-        if command in ['restore', 'import']:
-            await restore_config_command(client, message)
-            return
-        
-        if command in ['reset', 'clear']:
-            await reset_config_command(client, message)
-            return
-        
-        edit_commands = {
-            'start_msg': ('start_msg', 'start message', 'appearance'),
-            'start_pic': ('start_pic', 'start picture', 'appearance'),
-            'stats_text': ('stats_text', 'stats text', 'appearance'),
-            'force_channel': ('force_channel', 'force channel', 'forcesub'),
-            'force_msg': ('force_msg', 'force message', 'forcesub'),
-            'join_request': ('join_request', 'join request', 'forcesub'),
-            'caption': ('caption', 'custom caption', 'captions'),
-            'user_reply': ('user_reply', 'user reply', 'captions'),
-            'protect': ('protect', 'content protection', 'protection'),
-            'channel_btn': ('channel_btn', 'channel button', 'protection'),
-            'autodel_time': ('autodel_time', 'auto delete time', 'autodelete'),
-            'autodel_msg': ('autodel_msg', 'auto delete message', 'autodelete'),
-            'autodel_success': ('autodel_success', 'success message', 'autodelete'),
-            'shortener': ('shortener', 'url shortener', 'shortener'),
-            'shortener_api': ('shortener_api', 'shortener api', 'shortener'),
-            'shortener_site': ('shortener_site', 'shortener site', 'shortener'),
-        }
-        
-        if command in edit_commands:
-            key, name, menu = edit_commands[command]
-            await handle_direct_edit(client, message, key, name, menu)
-            return
-        
-        await message.reply_text(
-            f"❌ <b>Unknown command:</b> <code>{command}</code>\n\n"
-            f"Use <code>/setup help</code> to see all available commands.",
-            quote=True
-        )
+async def setup_panel(client: Bot, message: Message):
+    """Main setup panel"""
+    await message.reply_text(
+        MAIN_MENU,
+        reply_markup=main_keyboard(),
+        quote=True
+    )
+
+# ===========================
+# CALLBACK HANDLERS
+# ===========================
+
+@Bot.on_callback_query(filters.regex(r'^setup_main$'))
+async def show_main_menu(client: Bot, query: CallbackQuery):
+    """Show main menu"""
+    await query.message.edit_text(
+        MAIN_MENU,
+        reply_markup=main_keyboard()
+    )
+    await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_channels$'))
+async def setup_channels(client: Bot, query: CallbackQuery):
+    """Channels configuration"""
     
-    except Exception as e:
-        await message.reply_text(
-            f"❌ <b>Error:</b> {str(e)}\n\n"
-            f"Use <code>/setup help</code> for command guide.",
-            quote=True
-        )
-
-# ===========================
-# DIRECT COMMAND HANDLERS
-# ===========================
-
-async def handle_direct_edit(client: Bot, message: Message, key: str, name: str, menu: str):
-    """Handle direct edit commands"""
-    if key == 'start_msg':
-        await edit_start_message_cmd(client, message)
-    elif key == 'start_pic':
-        await edit_start_pic_cmd(client, message)
-    elif key == 'stats_text':
-        await edit_stats_text_cmd(client, message)
-    elif key == 'force_channel':
-        await edit_force_channel_cmd(client, message)
-    elif key == 'force_msg':
-        await edit_force_message_cmd(client, message)
-    elif key == 'join_request':
-        await toggle_join_request_cmd(client, message)
-    elif key == 'caption':
-        await edit_caption_cmd(client, message)
-    elif key == 'user_reply':
-        await edit_user_reply_cmd(client, message)
-    elif key == 'protect':
-        await toggle_protect_content_cmd(client, message)
-    elif key == 'channel_btn':
-        await toggle_channel_button_cmd(client, message)
-    elif key == 'autodel_time':
-        await edit_autodel_time_cmd(client, message)
-    elif key == 'autodel_msg':
-        await edit_autodel_msg_cmd(client, message)
-    elif key == 'autodel_success':
-        await edit_autodel_success_cmd(client, message)
-    elif key == 'shortener':
-        await toggle_shortener_cmd(client, message)
-    elif key == 'shortener_api':
-        await edit_shortener_api_cmd(client, message)
-    elif key == 'shortener_site':
-        await edit_shortener_site_cmd(client, message)
-
-async def show_all_settings_command(client: Bot, message: Message):
-    """Show all settings via command"""
-    try:
-        start_msg = await safe_get_setting('start_msg', 'Not Set')
-        start_pic = await safe_get_setting('start_pic', 'Not Set')
-        force_msg = await safe_get_setting('force_msg', 'Not Set')
-        force_channel = await safe_get_setting('force_channel', '0')
-        caption = await safe_get_setting('caption', 'Not Set')
-        protect = await safe_get_setting('protect_content', 'False')
-        autodel_time = await safe_get_setting('auto_delete_time', '0')
-        autodel_msg = await safe_get_setting('auto_delete_msg', 'Not Set')
-        autodel_success = await safe_get_setting('auto_delete_success', 'Not Set')
-        channel_btn = await safe_get_setting('disable_channel_button', 'False')
-        user_reply = await safe_get_setting('user_reply', 'Not Set')
-        stats_text = await safe_get_setting('stats_text', 'Not Set')
-        join_req = await safe_get_setting('join_request', 'False')
-        shortener_enabled = await safe_get_setting('shortener_enabled', 'False')
-        shortener_api = await safe_get_setting('shortener_api', 'Not Set')
-        shortener_site = await safe_get_setting('shortener_site', 'Not Set')
-        
-        def truncate(text, length=50):
-            text = str(text)
-            return text[:length] + '...' if len(text) > length else text
-        
-        newline = "\n"
-        settings_text = f"""
+    db_channel = get_setting('channel_id', 'Not Set')
+    force_channel = get_setting('force_channel', '0')
+    
+    # Get channel names
+    db_info = "Not configured"
+    force_info = "Disabled"
+    
+    if db_channel != 'Not Set':
+        try:
+            chat = await client.get_chat(int(db_channel))
+            db_info = f"{chat.title}\n<code>{db_channel}</code>"
+        except:
+            db_info = f"<code>{db_channel}</code>\n⚠️ Cannot access"
+    
+    if force_channel != '0':
+        try:
+            chat = await client.get_chat(int(force_channel))
+            force_info = f"{chat.title}\n<code>{force_channel}</code>"
+        except:
+            force_info = f"<code>{force_channel}</code>\n⚠️ Cannot access"
+    
+    text = f"""
 ╔══════════════════════════════╗
-║  📋 <b>ALL BOT SETTINGS</b>  📋  ║
+║   📢 <b>CHANNEL SETTINGS</b>  📢   ║
 ╚══════════════════════════════╝
 
-🎨 <b>APPEARANCE</b>
-├ Start Message: <code>{truncate(start_msg, 40)}</code>
-├ Start Picture: <code>{truncate(start_pic, 40)}</code>
-└ Stats Text: <code>{truncate(stats_text, 40)}</code>
+<b>📁 Database Channel:</b>
+{db_info}
 
-📢 <b>FORCE SUBSCRIBE</b>
-├ Channel ID: <code>{force_channel}</code>
-├ Join Request: <code>{join_req}</code>
-└ Force Message: <code>{truncate(force_msg, 40)}</code>
+<b>📢 Force Subscribe:</b>
+{force_info}
 
-📝 <b>CAPTIONS & REPLIES</b>
-├ Custom Caption: <code>{truncate(caption, 40)}</code>
-└ User Reply: <code>{truncate(user_reply, 40)}</code>
+<b>🔧 How to Change:</b>
+1. Run <code>/setchannel db</code> or <code>/setchannel force</code>
+2. Forward ANY message from your channel
+3. Bot auto-detects channel ID
+4. Done! ✅
 
-🔒 <b>PROTECTION</b>
-├ Protect Content: <code>{protect}</code>
-└ Channel Button: <code>{'Hidden' if channel_btn == 'True' else 'Visible'}</code>
-
-⏱️ <b>AUTO DELETE</b>
-├ Delete Time: <code>{autodel_time}s</code>
-├ Delete Message: <code>{truncate(autodel_msg, 40)}</code>
-└ Success Message: <code>{truncate(autodel_success, 40)}</code>
-
-🔗 <b>URL SHORTENER</b>
-├ Status: <code>{shortener_enabled}</code>
-├ API Key: <code>{truncate(shortener_api, 40)}</code>
-└ Site URL: <code>{truncate(shortener_site, 40)}</code>
-
-<i>Use /setup [command] to edit any setting</i>
+<b>💡 Easy Setup:</b>
+Just forward a message - no need to find channel ID!
 """
-        
-        await message.reply_text(settings_text, quote=True)
-    except Exception as e:
-        await message.reply_text(f"❌ <b>Error:</b> {str(e)}", quote=True)
-
-async def backup_config_command(client: Bot, message: Message):
-    """Backup configuration via command"""
-    try:
-        settings_keys = [
-            'start_msg', 'start_pic', 'force_msg', 'force_channel',
-            'caption', 'protect_content', 'auto_delete_time', 'auto_delete_msg',
-            'auto_delete_success', 'disable_channel_button', 'user_reply',
-            'stats_text', 'join_request', 'shortener_enabled', 'shortener_api',
-            'shortener_site'
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📁 Set DB Channel", url=f"https://t.me/{client.username}?start=cmd_setchannel_db")
+        ],
+        [
+            InlineKeyboardButton("📢 Set Force Sub", url=f"https://t.me/{client.username}?start=cmd_setchannel_force")
+        ],
+        [
+            InlineKeyboardButton("👁️ View Details", callback_data="setup_viewchannels")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
         ]
-        
-        backup_data = {}
-        for key in settings_keys:
-            backup_data[key] = await safe_get_setting(key, 'Not Set')
-        
-        import json
-        from datetime import datetime
-        backup_json = json.dumps(backup_data, indent=2)
-        
-        await message.reply_document(
-            document=backup_json.encode(),
-            file_name=f"bot_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            caption="✅ <b>Configuration Backup</b>\n\nUse <code>/setup restore</code> to restore.",
-            quote=True
-        )
-    except Exception as e:
-        await message.reply_text(f"❌ <b>Backup failed:</b> {str(e)}", quote=True)
-
-async def restore_config_command(client: Bot, message: Message):
-    """Restore configuration via command"""
-    msg = await message.reply_text(
-        "📥 <b>Restore Configuration</b>\n\n"
-        "Reply to this message with the backup JSON file.\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
+    ])
     
-    response = await listen_for_input(client, message.chat.id, 60)
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_appearance$'))
+async def setup_appearance(client: Bot, query: CallbackQuery):
+    """Appearance settings"""
     
-    if response is None or not response.document:
-        await msg.edit_text("❌ <b>Cancelled or invalid file!</b>")
-        return
+    text = """
+╔════════════════════════════╗
+║   🎨 <b>APPEARANCE</b>  🎨   ║
+╚════════════════════════════╝
+
+Customize how your bot looks!
+
+🖼️ <b>Start Picture</b>
+Welcome image URL
+
+💬 <b>Start Message</b>
+Welcome text for users
+
+📊 <b>Stats Format</b>
+/stats command display
+
+<b>✏️ Click below to edit:</b>
+"""
     
-    try:
-        import json
-        file_path = await response.download()
-        with open(file_path, 'r') as f:
-            backup_data = json.load(f)
-        
-        count = 0
-        for key, value in backup_data.items():
-            if value != 'Not Set':
-                if await safe_update_setting(key, value):
-                    count += 1
-        
-        await response.reply_text(
-            f"✅ <b>Configuration restored!</b>\n\n"
-            f"<b>Restored {count}/{len(backup_data)} settings successfully.</b>",
-            quote=True
-        )
-    except Exception as e:
-        await response.reply_text(f"❌ <b>Restore failed:</b> {str(e)}", quote=True)
-
-async def reset_config_command(client: Bot, message: Message):
-    """Reset configuration via command"""
-    msg = await message.reply_text(
-        "⚠️ <b>RESET ALL SETTINGS</b>\n\n"
-        "Are you sure? This will delete ALL custom settings!\n\n"
-        "Reply with <code>YES</code> to confirm or <code>NO</code> to cancel.",
-        quote=True
-    )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🖼️ Start Picture", callback_data="edit_start_pic")
+        ],
+        [
+            InlineKeyboardButton("💬 Start Message", callback_data="edit_start_msg")
+        ],
+        [
+            InlineKeyboardButton("📊 Stats Format", callback_data="edit_stats_text")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
     
-    response = await listen_for_input(client, message.chat.id, 30)
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_messages$'))
+async def setup_messages(client: Bot, query: CallbackQuery):
+    """Messages configuration"""
     
-    if response is None or response.text.upper() != 'YES':
-        await msg.edit_text("❌ <b>Reset cancelled.</b>")
-        return
+    text = """
+╔══════════════════════════════╗
+║   📝 <b>MESSAGE SETTINGS</b>  📝   ║
+╚══════════════════════════════╝
+
+Configure bot messages:
+
+📄 <b>Custom Caption</b>
+Add custom captions to files
+
+💭 <b>User Reply</b>
+Auto-reply to user messages
+
+📢 <b>Force Sub Message</b>
+Text when user not subscribed
+
+<b>✏️ Click below to edit:</b>
+"""
     
-    try:
-        from database.database import database
-        if hasattr(database, 'settings_collection'):
-            database.settings_collection.delete_many({})
-        
-        await response.reply_text(
-            "✅ <b>All settings have been reset!</b>\n\n"
-            "<i>Bot will now use environment variables.</i>",
-            quote=True
-        )
-    except Exception as e:
-        await response.reply_text(f"❌ <b>Reset failed:</b> {str(e)}", quote=True)
-
-# Command-specific edit functions
-async def edit_start_message_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "💬 <b>Edit Start Message</b>\n\nSend the new message.\n\n"
-        "<b>Placeholders:</b> <code>{first} {last} {username} {mention} {id}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response and await safe_update_setting('start_msg', response.text):
-        preview = response.text[:200]
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{preview}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def edit_start_pic_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "🖼️ <b>Edit Start Picture</b>\n\nSend image URL or <code>none</code> to remove.\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id, 60)
-    if response:
-        value = '' if response.text.lower() == 'none' else response.text
-        if await safe_update_setting('start_pic', value):
-            status = 'Removed' if not value else 'Updated'
-            await response.reply_text(f"✅ <b>{status}!</b>", quote=True)
-        else:
-            await response.reply_text("❌ <b>Failed!</b>", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled!</b>")
-
-async def edit_stats_text_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "📊 <b>Edit Stats Text</b>\n\nSend the format.\n\n"
-        "<b>Placeholder:</b> <code>{uptime}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response and await safe_update_setting('stats_text', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def edit_force_channel_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "🆔 <b>Edit Force Channel</b>\n\nSend channel ID or <code>0</code> to disable.\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id, 60)
-    if response:
-        try:
-            channel_id = int(response.text)
-            if channel_id != 0:
-                chat = await client.get_chat(channel_id)
-                if await safe_update_setting('force_channel', str(channel_id)):
-                    await response.reply_text(
-                        f"✅ <b>Updated!</b>\n\n{chat.title} ({channel_id})",
-                        quote=True
-                    )
-                else:
-                    await response.reply_text("❌ <b>Failed!</b>", quote=True)
-            else:
-                if await safe_update_setting('force_channel', '0'):
-                    await response.reply_text("✅ <b>Force subscribe disabled!</b>", quote=True)
-        except ValueError:
-            await response.reply_text("❌ <b>Invalid ID!</b>", quote=True)
-        except Exception as e:
-            await response.reply_text(f"❌ <b>Error:</b> {str(e)}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled!</b>")
-
-async def edit_force_message_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "💬 <b>Edit Force Message</b>\n\nSend the message.\n\n"
-        "<b>Placeholders:</b> <code>{first} {last} {username} {mention} {id}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response and await safe_update_setting('force_msg', response.text):
-        preview = response.text[:200]
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{preview}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def toggle_join_request_cmd(client: Bot, message: Message):
-    current = await safe_get_setting('join_request', 'False')
-    new_value = 'False' if current == 'True' else 'True'
-    if await safe_update_setting('join_request', new_value):
-        status = 'Enabled' if new_value == 'True' else 'Disabled'
-        await message.reply_text(f"✅ <b>Join Request {status}!</b>", quote=True)
-    else:
-        await message.reply_text("❌ <b>Failed to update!</b>", quote=True)
-
-async def edit_caption_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "📄 <b>Edit Caption</b>\n\nSend caption or <code>none</code> to disable.\n\n"
-        "<b>Placeholders:</b> <code>{filename} {previouscaption}</code>\n"
-        "<b>Supports:</b> HTML, blockquotes, formatting\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response:
-        value = '' if response.text.lower() == 'none' else response.text
-        if await safe_update_setting('caption', value):
-            status = 'Disabled' if not value else 'Updated'
-            await response.reply_text(f"✅ <b>{status}!</b>", quote=True)
-        else:
-            await response.reply_text("❌ <b>Failed!</b>", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled!</b>")
-
-async def edit_user_reply_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "💭 <b>Edit User Reply</b>\n\nSend auto-reply or <code>none</code> to disable.\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response:
-        value = '' if response.text.lower() == 'none' else response.text
-        if await safe_update_setting('user_reply', value):
-            status = 'Disabled' if not value else 'Updated'
-            await response.reply_text(f"✅ <b>{status}!</b>", quote=True)
-        else:
-            await response.reply_text("❌ <b>Failed!</b>", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled!</b>")
-
-async def toggle_protect_content_cmd(client: Bot, message: Message):
-    current = await safe_get_setting('protect_content', 'False')
-    new_value = 'False' if current == 'True' else 'True'
-    if await safe_update_setting('protect_content', new_value):
-        status = 'Enabled' if new_value == 'True' else 'Disabled'
-        await message.reply_text(f"✅ <b>Content Protection {status}!</b>", quote=True)
-    else:
-        await message.reply_text("❌ <b>Failed to update!</b>", quote=True)
-
-async def toggle_channel_button_cmd(client: Bot, message: Message):
-    current = await safe_get_setting('disable_channel_button', 'False')
-    new_value = 'False' if current == 'True' else 'True'
-    if await safe_update_setting('disable_channel_button', new_value):
-        status = 'Hidden' if new_value == 'True' else 'Visible'
-        await message.reply_text(f"✅ <b>Channel Button {status}!</b>", quote=True)
-    else:
-        await message.reply_text("❌ <b>Failed to update!</b>", quote=True)
-
-async def edit_autodel_time_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "⏱️ <b>Edit Auto Delete Time</b>\n\nSend seconds or <code>0</code> to disable.\n\n"
-        "<b>Examples:</b> 300 (5min), 600 (10min), 1800 (30min)\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id, 60)
-    if response:
-        try:
-            seconds = int(response.text)
-            if seconds < 0:
-                raise ValueError()
-            if await safe_update_setting('auto_delete_time', str(seconds)):
-                if seconds == 0:
-                    await response.reply_text("✅ <b>Disabled!</b>", quote=True)
-                else:
-                    mins = seconds // 60
-                    await response.reply_text(
-                        f"✅ <b>Updated to {seconds}s ({mins}min)!</b>",
-                        quote=True
-                    )
-            else:
-                await response.reply_text("❌ <b>Failed!</b>", quote=True)
-        except ValueError:
-            await response.reply_text("❌ <b>Invalid number!</b>", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled!</b>")
-
-async def edit_autodel_msg_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "💬 <b>Edit Delete Message</b>\n\nSend warning message.\n\n"
-        "<b>Placeholder:</b> <code>{time}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response and await safe_update_setting('auto_delete_msg', response.text):
-        preview = response.text[:200]
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{preview}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def edit_autodel_success_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "✅ <b>Edit Success Message</b>\n\nSend success message.\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id)
-    if response and await safe_update_setting('auto_delete_success', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def toggle_shortener_cmd(client: Bot, message: Message):
-    current = await safe_get_setting('shortener_enabled', 'False')
-    new_value = 'False' if current == 'True' else 'True'
-    if await safe_update_setting('shortener_enabled', new_value):
-        status = 'Enabled' if new_value == 'True' else 'Disabled'
-        await message.reply_text(f"✅ <b>URL Shortener {status}!</b>", quote=True)
-    else:
-        await message.reply_text("❌ <b>Failed to update!</b>", quote=True)
-
-async def edit_shortener_api_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "🔑 <b>Edit Shortener API</b>\n\nSend your API key.\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id, 60)
-    if response and await safe_update_setting('shortener_api', response.text):
-        await response.reply_text("✅ <b>API Key Updated!</b>", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-async def edit_shortener_site_cmd(client: Bot, message: Message):
-    msg = await message.reply_text(
-        "🌐 <b>Edit Shortener Site</b>\n\nSend site URL.\n\n"
-        "<b>Supported:</b> Linkvertise, Shorte.st, GPLinks\n\n"
-        "Send <code>cancel</code> to abort.",
-        quote=True
-    )
-    response = await listen_for_input(client, message.chat.id, 60)
-    if response and await safe_update_setting('shortener_site', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", quote=True)
-    else:
-        await msg.edit_text("❌ <b>Cancelled or failed!</b>")
-
-# ===========================
-# PANEL MODE HANDLERS
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^menu_'))
-async def menu_handler(client: Bot, query):
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this panel!", show_alert=True)
-        return
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📄 Custom Caption", callback_data="edit_caption")
+        ],
+        [
+            InlineKeyboardButton("💭 User Reply", callback_data="edit_user_reply")
+        ],
+        [
+            InlineKeyboardButton("📢 Force Sub Message", callback_data="edit_force_msg")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
     
-    try:
-        menu_type = query.data.split('_')[1]
-        
-        if menu_type == "main":
-            await query.edit_message_text(MAIN_MENU_TEXT, reply_markup=main_menu_keyboard())
-        elif menu_type == "appearance":
-            await query.edit_message_text(APPEARANCE_MENU, reply_markup=appearance_keyboard())
-        elif menu_type == "forcesub":
-            channel_id, join_req = await get_force_sub_info()
-            text = FORCE_SUB_MENU.format(channel=channel_id, join_req=join_req)
-            await query.edit_message_text(text, reply_markup=forcesub_keyboard())
-        elif menu_type == "captions":
-            await query.edit_message_text(CAPTIONS_MENU, reply_markup=captions_keyboard())
-        elif menu_type == "protection":
-            protect, button = await get_protection_info()
-            text = PROTECTION_MENU.format(
-                protect="Enabled" if protect == 'True' else "Disabled",
-                button="Hidden" if button == 'True' else "Visible"
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_protection$'))
+async def setup_protection(client: Bot, query: CallbackQuery):
+    """Protection settings"""
+    
+    protect = get_setting('protect_content', 'False')
+    button = get_setting('disable_channel_button', 'False')
+    
+    text = f"""
+╔════════════════════════════╗
+║   🔒 <b>PROTECTION</b>  🔒   ║
+╚════════════════════════════╝
+
+Security settings:
+
+🔒 <b>Protect Content</b>
+Status: {'✅ Enabled' if protect == 'True' else '❌ Disabled'}
+Prevents forwarding files
+
+🔘 <b>Channel Button</b>
+Status: {'🙈 Hidden' if button == 'True' else '👁️ Visible'}
+Share button on posts
+
+<b>⚙️ Click to toggle:</b>
+"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                f"🔒 Protect: {'ON ✅' if protect == 'True' else 'OFF ❌'}",
+                callback_data="toggle_protect"
             )
-            await query.edit_message_text(text, reply_markup=protection_keyboard())
-        elif menu_type == "autodelete":
-            time, mins, status = await get_autodelete_info()
-            text = AUTO_DELETE_MENU.format(time=time, mins=mins, status=status)
-            await query.edit_message_text(text, reply_markup=autodelete_keyboard())
-        elif menu_type == "shortener":
-            status = await get_shortener_info()
-            text = SHORTENER_MENU.format(status=status)
-            await query.edit_message_text(text, reply_markup=shortener_keyboard())
-        elif menu_type == "advanced":
-            await query.edit_message_text(ADVANCED_MENU, reply_markup=advanced_keyboard())
-        
-        await query.answer()
-    except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
-
-@Bot.on_callback_query(filters.regex(r'^edit_'))
-async def edit_handler(client: Bot, query):
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins!", show_alert=True)
-        return
+        ],
+        [
+            InlineKeyboardButton(
+                f"🔘 Button: {'Hidden 🙈' if button == 'True' else 'Visible 👁️'}",
+                callback_data="toggle_button"
+            )
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
     
-    edit_type = query.data.split('_', 1)[1]
-    
-    try:
-        # Map edit types to functions
-        edit_functions = {
-            'start_msg': edit_start_message,
-            'start_pic': edit_start_pic,
-            'stats_text': edit_stats_text,
-            'force_channel': edit_force_channel,
-            'force_msg': edit_force_message,
-            'caption': edit_caption,
-            'user_reply': edit_user_reply,
-            'autodel_time': edit_autodel_time,
-            'autodel_msg': edit_autodel_msg,
-            'autodel_success': edit_autodel_success,
-            'shortener_api': edit_shortener_api,
-            'shortener_site': edit_shortener_site,
-        }
-        
-        if edit_type in edit_functions:
-            await edit_functions[edit_type](client, query)
-    except Exception as e:
-        await query.message.reply_text(f"❌ <b>Error:</b> {str(e)}")
-
-# Panel edit functions (shortened for space)
-async def edit_start_message(client: Bot, query):
-    await query.message.edit_text(
-        "💬 <b>Edit Start Message</b>\n\nSend the new message.\n\n"
-        "<b>Placeholders:</b> <code>{first} {last} {username} {mention} {id}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("appearance")
-    )
+    await query.message.edit_text(text, reply_markup=keyboard)
     await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("appearance"))
-        return
-    
-    if await safe_update_setting('start_msg', response.text):
-        preview = response.text[:200]
-        await response.reply_text(
-            f"✅ <b>Start message updated!</b>\n\n<b>Preview:</b>\n{preview}",
-            reply_markup=back_keyboard("appearance")
-        )
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("appearance"))
 
-async def edit_start_pic(client: Bot, query):
-    await query.message.edit_text(
-        "🖼️ <b>Edit Start Picture</b>\n\nSend image URL or <code>none</code> to remove.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("appearance")
-    )
-    await query.answer()
+@Bot.on_callback_query(filters.regex(r'^setup_autodelete$'))
+async def setup_autodelete(client: Bot, query: CallbackQuery):
+    """Auto delete settings"""
     
-    response = await listen_for_input(client, query.message.chat.id, 60)
+    time = get_setting('auto_delete_time', '0')
+    mins = int(time) // 60 if time != '0' else 0
     
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("appearance"))
-        return
-    
-    value = '' if response.text.lower() == 'none' else response.text
-    
-    if await safe_update_setting('start_pic', value):
-        status = "removed" if value == '' else "updated"
-        await response.reply_text(f"✅ <b>Start picture {status}!</b>", reply_markup=back_keyboard("appearance"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("appearance"))
+    text = f"""
+╔══════════════════════════════╗
+║   ⏱️ <b>AUTO DELETE</b>  ⏱️   ║
+╚══════════════════════════════╝
 
-async def edit_stats_text(client: Bot, query):
-    await query.message.edit_text(
-        "📊 <b>Edit Stats Text</b>\n\nSend format.\n\n"
-        "<b>Placeholder:</b> <code>{uptime}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("appearance")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("appearance"))
-        return
-    
-    if await safe_update_setting('stats_text', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", reply_markup=back_keyboard("appearance"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("appearance"))
+Automatic file deletion:
 
-async def edit_force_channel(client: Bot, query):
-    await query.message.edit_text(
-        "🆔 <b>Edit Force Channel</b>\n\nSend channel ID or <code>0</code> to disable.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("forcesub")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id, 60)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("forcesub"))
-        return
-    
-    try:
-        channel_id = int(response.text)
-        
-        if channel_id != 0:
-            chat = await client.get_chat(channel_id)
-            if await safe_update_setting('force_channel', str(channel_id)):
-                await response.reply_text(
-                    f"✅ <b>Updated!</b>\n\n{chat.title} ({channel_id})",
-                    reply_markup=back_keyboard("forcesub")
-                )
-            else:
-                await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("forcesub"))
-        else:
-            if await safe_update_setting('force_channel', '0'):
-                await response.reply_text("✅ <b>Disabled!</b>", reply_markup=back_keyboard("forcesub"))
-    except ValueError:
-        await response.reply_text("❌ <b>Invalid ID!</b>", reply_markup=back_keyboard("forcesub"))
-    except Exception as e:
-        await response.reply_text(f"❌ <b>Error:</b> {str(e)}", reply_markup=back_keyboard("forcesub"))
+⏱️ <b>Delete Timer</b>
+Current: {time}s ({mins} minutes)
+Status: {'✅ Enabled' if int(time) > 0 else '❌ Disabled'}
 
-async def edit_force_message(client: Bot, query):
-    await query.message.edit_text(
-        "💬 <b>Edit Force Message</b>\n\nSend message.\n\n"
-        "<b>Placeholders:</b> <code>{first} {last} {username} {mention} {id}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("forcesub")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("forcesub"))
-        return
-    
-    if await safe_update_setting('force_msg', response.text):
-        preview = response.text[:200]
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{preview}", reply_markup=back_keyboard("forcesub"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("forcesub"))
+💬 <b>Warning Message</b>
+Shown before deletion
 
-async def edit_caption(client: Bot, query):
-    await query.message.edit_text(
-        "📄 <b>Edit Caption</b>\n\nSend caption or <code>none</code> to disable.\n\n"
-        "<b>Placeholders:</b> <code>{filename} {previouscaption}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("captions")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("captions"))
-        return
-    
-    value = '' if response.text.lower() == 'none' else response.text
-    
-    if await safe_update_setting('caption', value):
-        status = "disabled" if value == '' else "updated"
-        # Fixed f-string issue
-        if value == '':
-            message_text = f"✅ <b>Custom caption {status}!</b>\n\n<i>Default captions will be used.</i>"
-        else:
-            preview = value[:200]
-            message_text = f"✅ <b>Custom caption {status}!</b>\n\n<b>Preview:</b>\n{preview}"
-        
-        await response.reply_text(message_text, reply_markup=back_keyboard("captions"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("captions"))
+✅ <b>Success Message</b>
+Shown after deletion
 
-async def edit_user_reply(client: Bot, query):
-    await query.message.edit_text(
-        "💭 <b>Edit User Reply</b>\n\nSend auto-reply or <code>none</code> to disable.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("captions")
-    )
+<b>✏️ Click below to edit:</b>
+"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("⏱️ Set Timer", callback_data="edit_autodel_time")
+        ],
+        [
+            InlineKeyboardButton("💬 Warning Text", callback_data="edit_autodel_msg"),
+            InlineKeyboardButton("✅ Success Text", callback_data="edit_autodel_success")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
+    
+    await query.message.edit_text(text, reply_markup=keyboard)
     await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("captions"))
-        return
-    
-    value = '' if response.text.lower() == 'none' else response.text
-    
-    if await safe_update_setting('user_reply', value):
-        status = "disabled" if value == '' else "updated"
-        # Fixed f-string issue
-        if value == '':
-            message_text = f"✅ <b>User reply {status}!</b>\n\n<i>No auto-reply will be sent.</i>"
-        else:
-            message_text = f"✅ <b>User reply {status}!</b>\n\n<b>Preview:</b>\n{value}"
-        
-        await response.reply_text(message_text, reply_markup=back_keyboard("captions"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("captions"))
 
-async def edit_autodel_time(client: Bot, query):
-    await query.message.edit_text(
-        "⏱️ <b>Edit Auto Delete Time</b>\n\nSend seconds or <code>0</code> to disable.\n\n"
-        "<b>Examples:</b> 300 (5min), 600 (10min)\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("autodelete")
-    )
-    await query.answer()
+@Bot.on_callback_query(filters.regex(r'^setup_shortener$'))
+async def setup_shortener(client: Bot, query: CallbackQuery):
+    """URL shortener settings"""
     
-    response = await listen_for_input(client, query.message.chat.id, 60)
+    enabled = get_setting('shortener_enabled', 'False')
     
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("autodelete"))
-        return
-    
-    try:
-        seconds = int(response.text)
-        if seconds < 0:
-            raise ValueError()
-        
-        if await safe_update_setting('auto_delete_time', str(seconds)):
-            mins = seconds // 60
-            if seconds == 0:
-                await response.reply_text("✅ <b>Disabled!</b>", reply_markup=back_keyboard("autodelete"))
-            else:
-                await response.reply_text(
-                    f"✅ <b>Updated to {seconds}s ({mins} min)!</b>",
-                    reply_markup=back_keyboard("autodelete")
-                )
-        else:
-            await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("autodelete"))
-    except ValueError:
-        await response.reply_text("❌ <b>Invalid number!</b>", reply_markup=back_keyboard("autodelete"))
+    text = f"""
+╔══════════════════════════════╗
+║   🔗 <b>URL SHORTENER</b>  🔗   ║
+╚══════════════════════════════╝
 
-async def edit_autodel_msg(client: Bot, query):
-    await query.message.edit_text(
-        "💬 <b>Edit Delete Message</b>\n\nSend warning message.\n\n"
-        "<b>Placeholder:</b> <code>{time}</code>\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("autodelete")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("autodelete"))
-        return
-    
-    if await safe_update_setting('auto_delete_msg', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", reply_markup=back_keyboard("autodelete"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("autodelete"))
+Link shortening service:
 
-async def edit_autodel_success(client: Bot, query):
-    await query.message.edit_text(
-        "✅ <b>Edit Success Message</b>\n\nSend success message.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("autodelete")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("autodelete"))
-        return
-    
-    if await safe_update_setting('auto_delete_success', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", reply_markup=back_keyboard("autodelete"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("autodelete"))
+🔄 <b>Status</b>
+{'✅ Enabled' if enabled == 'True' else '❌ Disabled'}
 
-async def edit_shortener_api(client: Bot, query):
-    await query.message.edit_text(
-        "🔑 <b>Edit API Key</b>\n\nSend your shortener API key.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("shortener")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id, 60)
-    
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("shortener"))
-        return
-    
-    if await safe_update_setting('shortener_api', response.text):
-        await response.reply_text("✅ <b>API Key Updated!</b>", reply_markup=back_keyboard("shortener"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("shortener"))
+🔑 <b>API Key</b>
+Your shortener API
 
-async def edit_shortener_site(client: Bot, query):
-    await query.message.edit_text(
-        "🌐 <b>Edit Shortener Site</b>\n\nSend site URL.\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("shortener")
-    )
+🌐 <b>Site URL</b>
+Shortener website
+
+<b>Supported:</b> Linkvertise, Shorte.st, GPLinks
+
+<b>⚙️ Click to configure:</b>
+"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                f"🔄 {'Disable' if enabled == 'True' else 'Enable'}",
+                callback_data="toggle_shortener"
+            )
+        ],
+        [
+            InlineKeyboardButton("🔑 Set API Key", callback_data="edit_shortener_api"),
+            InlineKeyboardButton("🌐 Set Site", callback_data="edit_shortener_site")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
+    
+    await query.message.edit_text(text, reply_markup=keyboard)
     await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_viewall$'))
+async def view_all_settings(client: Bot, query: CallbackQuery):
+    """View all settings"""
     
-    response = await listen_for_input(client, query.message.chat.id, 60)
+    # Get all settings
+    settings = {
+        'start_msg': get_setting('start_msg', 'Default'),
+        'start_pic': get_setting('start_pic', 'None'),
+        'channel_id': get_setting('channel_id', 'Not Set'),
+        'force_channel': get_setting('force_channel', '0'),
+        'caption': get_setting('caption', 'None'),
+        'protect': get_setting('protect_content', 'False'),
+        'autodel': get_setting('auto_delete_time', '0'),
+        'shortener': get_setting('shortener_enabled', 'False')
+    }
     
-    if response is None:
-        await query.message.edit_text("❌ <b>Cancelled!</b>", reply_markup=back_keyboard("shortener"))
-        return
+    def short(text, length=30):
+        text = str(text)
+        return text[:length] + '...' if len(text) > length else text
     
-    if await safe_update_setting('shortener_site', response.text):
-        await response.reply_text(f"✅ <b>Updated!</b>\n\n{response.text}", reply_markup=back_keyboard("shortener"))
-    else:
-        await response.reply_text("❌ <b>Failed!</b>", reply_markup=back_keyboard("shortener"))
+    text = f"""
+╔═══════════════════════════════╗
+║   📊 <b>ALL SETTINGS</b>  📊   ║
+╚═══════════════════════════════╝
+
+🎨 <b>Appearance</b>
+• Start Message: {short(settings['start_msg'])}
+• Start Picture: {short(settings['start_pic'])}
+
+📢 <b>Channels</b>
+• Database: <code>{settings['channel_id']}</code>
+• Force Sub: <code>{settings['force_channel']}</code>
+
+📝 <b>Messages</b>
+• Caption: {short(settings['caption'])}
+
+🔒 <b>Protection</b>
+• Protect Content: {settings['protect']}
+
+⏱️ <b>Auto Delete</b>
+• Timer: {settings['autodel']}s
+
+🔗 <b>Shortener</b>
+• Status: {settings['shortener']}
+
+<i>Use the buttons below to edit</i>
+"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh", callback_data="setup_viewall")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
+    
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer("Settings loaded!", show_alert=False)
+
+@Bot.on_callback_query(filters.regex(r'^setup_help$'))
+async def setup_help(client: Bot, query: CallbackQuery):
+    """Show help"""
+    
+    text = """
+╔════════════════════════════╗
+║   ❓ <b>HELP</b>  ❓   ║
+╚════════════════════════════╝
+
+<b>🎯 Quick Commands:</b>
+
+<b>Channels:</b>
+• <code>/setchannel db</code>
+• <code>/setchannel force</code>
+• <code>/viewchannels</code>
+
+<b>Setup:</b>
+• <code>/setup</code> - This panel
+• <code>/verify</code> - Verify setup
+
+<b>Testing:</b>
+• <code>/ping</code> - Test bot
+• <code>/test</code> - Run tests
+
+<b>💡 Tips:</b>
+
+1️⃣ <b>Set channels easily:</b>
+   Just forward a message from your channel!
+
+2️⃣ <b>Click commands to run:</b>
+   Tap any command above
+
+3️⃣ <b>Use buttons:</b>
+   All settings accessible via buttons
+
+<b>Need more help?</b>
+Check logs or contact @CodeXBotzSupport
+"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="setup_main")
+        ]
+    ])
+    
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+@Bot.on_callback_query(filters.regex(r'^setup_close$'))
+async def close_setup(client: Bot, query: CallbackQuery):
+    """Close setup panel"""
+    await query.message.delete()
+    await query.answer("Panel closed!", show_alert=False)
 
 # ===========================
 # TOGGLE HANDLERS
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^toggle_'))
-async def toggle_handler(client: Bot, query: CallbackQuery):
-    """Handle toggle switches"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
+@Bot.on_callback_query(filters.regex(r'^toggle_protect$'))
+async def toggle_protect(client: Bot, query: CallbackQuery):
+    """Toggle content protection"""
+    current = get_setting('protect_content', 'False')
+    new_value = 'False' if current == 'True' else 'True'
+    update_setting('protect_content', new_value)
     
-    toggle_type = query.data.split('_', 1)[1]
-    
-    try:
-        if toggle_type == "protect":
-            await toggle_protect_content(client, query)
-        elif toggle_type == "channel_btn":
-            await toggle_channel_button(client, query)
-        elif toggle_type == "join_request":
-            await toggle_join_request(client, query)
-        elif toggle_type == "shortener":
-            await toggle_shortener(client, query)
-    except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
-
-async def toggle_protect_content(client: Bot, query: CallbackQuery):
-    current = await safe_get_setting('protect_content', 'False')
-    current_bool = (current == 'True')
-    
-    await query.message.edit_text(
-        "🔒 <b>PROTECT CONTENT</b>\n\n"
-        "Prevent users from forwarding files from the bot.\n\n"
-        f"<b>Current Status:</b> {'✅ Enabled' if current_bool else '❌ Disabled'}\n\n"
-        "<i>Choose an option:</i>",
-        reply_markup=toggle_keyboard(current_bool, "set_protect")
+    await query.answer(
+        f"✅ Protect Content {'Enabled' if new_value == 'True' else 'Disabled'}!",
+        show_alert=True
     )
-    await query.answer()
-
-async def toggle_channel_button(client: Bot, query: CallbackQuery):
-    current = await safe_get_setting('disable_channel_button', 'False')
-    current_bool = (current == 'True')
     
-    await query.message.edit_text(
-        "🔘 <b>CHANNEL SHARE BUTTON</b>\n\n"
-        "Show or hide the share button on channel posts.\n\n"
-        f"<b>Current Status:</b> {'❌ Hidden' if current_bool else '✅ Visible'}\n\n"
-        "<i>Choose an option:</i>",
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    f"Currently: {'Hidden' if current_bool else 'Visible'}",
-                    callback_data="noop"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "👁️ Show Button" if current_bool else "👁️ Showing ✓",
-                    callback_data="set_channel_btn_false" if current_bool else "noop"
-                ),
-                InlineKeyboardButton(
-                    "🙈 Hide Button" if not current_bool else "🙈 Hidden ✓",
-                    callback_data="set_channel_btn_true" if not current_bool else "noop"
-                )
-            ],
-            [
-                InlineKeyboardButton("🔙 Back", callback_data="menu_protection")
-            ]
-        ])
-    )
-    await query.answer()
+    # Refresh the protection menu
+    await setup_protection(client, query)
 
-async def toggle_join_request(client: Bot, query: CallbackQuery):
-    current = await safe_get_setting('join_request', 'False')
-    current_bool = (current == 'True')
+@Bot.on_callback_query(filters.regex(r'^toggle_button$'))
+async def toggle_button(client: Bot, query: CallbackQuery):
+    """Toggle channel button"""
+    current = get_setting('disable_channel_button', 'False')
+    new_value = 'False' if current == 'True' else 'True'
+    update_setting('disable_channel_button', new_value)
     
-    await query.message.edit_text(
-        "📝 <b>JOIN REQUEST MODE</b>\n\n"
-        "Use join request instead of direct channel join.\n\n"
-        f"<b>Current Status:</b> {'✅ Enabled' if current_bool else '❌ Disabled'}\n\n"
-        "<i>Choose an option:</i>",
-        reply_markup=toggle_keyboard(current_bool, "set_join_req")
+    await query.answer(
+        f"✅ Channel Button {'Hidden' if new_value == 'True' else 'Visible'}!",
+        show_alert=True
     )
-    await query.answer()
+    
+    # Refresh the protection menu
+    await setup_protection(client, query)
 
+@Bot.on_callback_query(filters.regex(r'^toggle_shortener$'))
 async def toggle_shortener(client: Bot, query: CallbackQuery):
-    current = await safe_get_setting('shortener_enabled', 'False')
-    current_bool = (current == 'True')
+    """Toggle URL shortener"""
+    current = get_setting('shortener_enabled', 'False')
+    new_value = 'False' if current == 'True' else 'True'
+    update_setting('shortener_enabled', new_value)
     
-    await query.message.edit_text(
-        "🔗 <b>URL SHORTENER</b>\n\n"
-        "Enable or disable URL shortening for all links.\n\n"
-        f"<b>Current Status:</b> {'✅ Enabled' if current_bool else '❌ Disabled'}\n\n"
-        "<i>Choose an option:</i>",
-        reply_markup=toggle_keyboard(current_bool, "set_shortener")
+    await query.answer(
+        f"✅ URL Shortener {'Enabled' if new_value == 'True' else 'Disabled'}!",
+        show_alert=True
     )
-    await query.answer()
-
-# ===========================
-# SETTING UPDATE HANDLERS
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^set_'))
-async def set_handler(client: Bot, query: CallbackQuery):
-    """Handle setting updates"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
     
-    try:
-        parts = query.data.split('_')
-        if len(parts) < 3:
-            await query.answer("❌ Invalid callback data!", show_alert=True)
-            return
-        
-        setting_type = '_'.join(parts[1:-1])
-        value = parts[-1]
-        
-        if setting_type == "protect":
-            success = await safe_update_setting('protect_content', value.capitalize())
-            if success:
-                status = 'enabled' if value == 'true' else 'disabled'
-                await query.answer(f"✅ Content protection {status}!", show_alert=True)
-                await query.message.edit_text(
-                    f"✅ <b>Protection Updated!</b>\n\n"
-                    f"Content protection is now <b>{status}</b>.",
-                    reply_markup=back_keyboard("protection")
-                )
-            else:
-                await query.answer("❌ Failed to update setting!", show_alert=True)
-        
-        elif setting_type == "channel_btn":
-            success = await safe_update_setting('disable_channel_button', value.capitalize())
-            if success:
-                status = 'hidden' if value == 'true' else 'visible'
-                await query.answer(f"✅ Channel button {status}!", show_alert=True)
-                await query.message.edit_text(
-                    f"✅ <b>Button Updated!</b>\n\n"
-                    f"Channel share button is now <b>{status}</b>.",
-                    reply_markup=back_keyboard("protection")
-                )
-            else:
-                await query.answer("❌ Failed to update setting!", show_alert=True)
-        
-        elif setting_type == "join_req":
-            success = await safe_update_setting('join_request', value.capitalize())
-            if success:
-                status = 'enabled' if value == 'true' else 'disabled'
-                await query.answer(f"✅ Join request {status}!", show_alert=True)
-                await query.message.edit_text(
-                    f"✅ <b>Join Request Updated!</b>\n\n"
-                    f"Join request mode is now <b>{status}</b>.",
-                    reply_markup=back_keyboard("forcesub")
-                )
-            else:
-                await query.answer("❌ Failed to update setting!", show_alert=True)
-        
-        elif setting_type == "shortener":
-            success = await safe_update_setting('shortener_enabled', value.capitalize())
-            if success:
-                status = 'enabled' if value == 'true' else 'disabled'
-                await query.answer(f"✅ URL Shortener {status}!", show_alert=True)
-                await query.message.edit_text(
-                    f"✅ <b>Shortener Updated!</b>\n\n"
-                    f"URL shortening is now <b>{status}</b>.",
-                    reply_markup=back_keyboard("shortener")
-                )
-            else:
-                await query.answer("❌ Failed to update setting!", show_alert=True)
-    
-    except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+    # Refresh the shortener menu
+    await setup_shortener(client, query)
 
 # ===========================
-# VIEW ALL SETTINGS
+# EDIT HANDLERS (Simple version)
 # ===========================
 
-@Bot.on_callback_query(filters.regex(r'^view_all$'))
-async def view_all_settings(client: Bot, query: CallbackQuery):
-    """Display all current settings"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
+@Bot.on_callback_query(filters.regex(r'^edit_'))
+async def handle_edits(client: Bot, query: CallbackQuery):
+    """Handle edit callbacks"""
     
-    try:
-        # Fetch all settings
-        start_msg = await safe_get_setting('start_msg', 'Not Set')
-        start_pic = await safe_get_setting('start_pic', 'Not Set')
-        force_msg = await safe_get_setting('force_msg', 'Not Set')
-        force_channel = await safe_get_setting('force_channel', '0')
-        caption = await safe_get_setting('caption', 'Not Set')
-        protect = await safe_get_setting('protect_content', 'False')
-        autodel_time = await safe_get_setting('auto_delete_time', '0')
-        autodel_msg = await safe_get_setting('auto_delete_msg', 'Not Set')
-        autodel_success = await safe_get_setting('auto_delete_success', 'Not Set')
-        channel_btn = await safe_get_setting('disable_channel_button', 'False')
-        user_reply = await safe_get_setting('user_reply', 'Not Set')
-        stats_text = await safe_get_setting('stats_text', 'Not Set')
-        join_req = await safe_get_setting('join_request', 'False')
-        shortener_enabled = await safe_get_setting('shortener_enabled', 'False')
-        shortener_api = await safe_get_setting('shortener_api', 'Not Set')
-        shortener_site = await safe_get_setting('shortener_site', 'Not Set')
-        
-        def truncate(text, length=50):
-            text = str(text)
-            return text[:length] + '...' if len(text) > length else text
-        
-        # Build settings text without f-string issues
-        settings_parts = []
-        settings_parts.append("╔══════════════════════════════╗")
-        settings_parts.append("║  📋 <b>ALL BOT SETTINGS</b>  📋  ║")
-        settings_parts.append("╚══════════════════════════════╝")
-        settings_parts.append("")
-        settings_parts.append("🎨 <b>APPEARANCE</b>")
-        settings_parts.append(f"├ Start Message: <code>{truncate(start_msg, 40)}</code>")
-        settings_parts.append(f"├ Start Picture: <code>{truncate(start_pic, 40)}</code>")
-        settings_parts.append(f"└ Stats Text: <code>{truncate(stats_text, 40)}</code>")
-        settings_parts.append("")
-        settings_parts.append("📢 <b>FORCE SUBSCRIBE</b>")
-        settings_parts.append(f"├ Channel ID: <code>{force_channel}</code>")
-        settings_parts.append(f"├ Join Request: <code>{join_req}</code>")
-        settings_parts.append(f"└ Force Message: <code>{truncate(force_msg, 40)}</code>")
-        settings_parts.append("")
-        settings_parts.append("📝 <b>CAPTIONS & REPLIES</b>")
-        settings_parts.append(f"├ Custom Caption: <code>{truncate(caption, 40)}</code>")
-        settings_parts.append(f"└ User Reply: <code>{truncate(user_reply, 40)}</code>")
-        settings_parts.append("")
-        settings_parts.append("🔒 <b>PROTECTION</b>")
-        settings_parts.append(f"├ Protect Content: <code>{protect}</code>")
-        button_status = 'Hidden' if channel_btn == 'True' else 'Visible'
-        settings_parts.append(f"└ Channel Button: <code>{button_status}</code>")
-        settings_parts.append("")
-        settings_parts.append("⏱️ <b>AUTO DELETE</b>")
-        settings_parts.append(f"├ Delete Time: <code>{autodel_time}s</code>")
-        settings_parts.append(f"├ Delete Message: <code>{truncate(autodel_msg, 40)}</code>")
-        settings_parts.append(f"└ Success Message: <code>{truncate(autodel_success, 40)}</code>")
-        settings_parts.append("")
-        settings_parts.append("🔗 <b>URL SHORTENER</b>")
-        settings_parts.append(f"├ Status: <code>{shortener_enabled}</code>")
-        settings_parts.append(f"├ API Key: <code>{truncate(shortener_api, 40)}</code>")
-        settings_parts.append(f"└ Site URL: <code>{truncate(shortener_site, 40)}</code>")
-        settings_parts.append("")
-        settings_parts.append("<i>Last updated: Now</i>")
-        
-        settings_text = "\n".join(settings_parts)
-        
-        await query.message.edit_text(
-            settings_text,
-            reply_markup=InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("💾 Backup Config", callback_data="backup_config"),
-                    InlineKeyboardButton("🔄 Refresh", callback_data="view_all")
-                ],
-                [
-                    InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")
-                ]
-            ])
+    edit_type = query.data.replace('edit_', '')
+    
+    messages = {
+        'start_pic': "Send new start picture URL or 'none' to remove:",
+        'start_msg': "Send new start message (use {first}, {last}, etc):",
+        'stats_text': "Send new stats format (use {uptime}):",
+        'caption': "Send new caption or 'none' (use {filename}, {previouscaption}):",
+        'user_reply': "Send new user reply or 'none':",
+        'force_msg': "Send new force subscribe message:",
+        'autodel_time': "Send time in seconds (0 to disable):",
+        'autodel_msg': "Send warning message (use {time}):",
+        'autodel_success': "Send success message:",
+        'shortener_api': "Send your shortener API key:",
+        'shortener_site': "Send shortener site URL:"
+    }
+    
+    if edit_type in messages:
+        await query.message.reply_text(
+            f"✏️ <b>Edit {edit_type.replace('_', ' ').title()}</b>\n\n"
+            f"{messages[edit_type]}\n\n"
+            f"Send <code>cancel</code> to abort",
+            quote=True
         )
-        await query.answer("✅ Settings loaded!", show_alert=False)
-    
-    except Exception as e:
-        await query.answer(f"❌ Error loading settings: {str(e)}", show_alert=True)
-
-# ===========================
-# BACKUP & RESTORE
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^backup_config$'))
-async def backup_config(client: Bot, query: CallbackQuery):
-    """Backup all settings"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    try:
-        settings_keys = [
-            'start_msg', 'start_pic', 'force_msg', 'force_channel',
-            'caption', 'protect_content', 'auto_delete_time', 'auto_delete_msg',
-            'auto_delete_success', 'disable_channel_button', 'user_reply',
-            'stats_text', 'join_request', 'shortener_enabled', 'shortener_api',
-            'shortener_site'
-        ]
         
-        backup_data = {}
-        for key in settings_keys:
-            backup_data[key] = await safe_get_setting(key, 'Not Set')
-        
-        import json
-        from datetime import datetime
-        backup_json = json.dumps(backup_data, indent=2)
-        
-        await query.message.reply_document(
-            document=backup_json.encode(),
-            file_name=f"bot_config_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            caption="✅ <b>Configuration Backup</b>\n\nUse callback or command to restore."
-        )
-        await query.answer("✅ Backup created successfully!", show_alert=True)
-    
-    except Exception as e:
-        await query.answer(f"❌ Backup failed: {str(e)}", show_alert=True)
-
-@Bot.on_callback_query(filters.regex(r'^restore_config$'))
-async def restore_config(client: Bot, query: CallbackQuery):
-    """Restore settings from backup"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    await query.message.edit_text(
-        "📥 <b>Restore Configuration</b>\n\n"
-        "Send me the backup JSON file to restore.\n\n"
-        "Send <code>cancel</code> to abort.",
-        reply_markup=back_keyboard("advanced")
-    )
-    await query.answer()
-    
-    response = await listen_for_input(client, query.message.chat.id, 60)
-    
-    if response is None or not response.document:
-        await query.message.edit_text(
-            "❌ <b>Cancelled or invalid file!</b>",
-            reply_markup=back_keyboard("advanced")
-        )
-        return
-    
-    try:
-        import json
-        file_path = await response.download()
-        with open(file_path, 'r') as f:
-            backup_data = json.load(f)
-        
-        count = 0
-        for key, value in backup_data.items():
-            if value != 'Not Set':
-                if await safe_update_setting(key, value):
-                    count += 1
-        
-        await response.reply_text(
-            f"✅ <b>Configuration restored successfully!</b>\n\n"
-            f"<b>Restored {count}/{len(backup_data)} settings.</b>",
-            reply_markup=back_keyboard("advanced")
-        )
-    except Exception as e:
-        await response.reply_text(
-            f"❌ <b>Restore failed:</b> {str(e)}",
-            reply_markup=back_keyboard("advanced")
-        )
-
-# ===========================
-# RESET CONFIRMATION
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^confirm_reset$'))
-async def confirm_reset(client: Bot, query: CallbackQuery):
-    """Confirm reset action"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    await query.message.edit_text(
-        "⚠️ <b>RESET ALL SETTINGS</b>\n\n"
-        "Are you sure you want to reset ALL settings to default?\n\n"
-        "<b>This action cannot be undone!</b>\n\n"
-        "<i>Consider backing up first.</i>",
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("💾 Backup First", callback_data="backup_config"),
-            ],
-            [
-                InlineKeyboardButton("✅ Yes, Reset", callback_data="do_reset"),
-                InlineKeyboardButton("❌ No, Cancel", callback_data="menu_advanced")
-            ]
-        ])
-    )
-    await query.answer()
-
-@Bot.on_callback_query(filters.regex(r'^do_reset$'))
-async def do_reset(client: Bot, query: CallbackQuery):
-    """Actually perform the reset"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    try:
-        from database.database import database
-        if hasattr(database, 'settings_collection'):
-            database.settings_collection.delete_many({})
-        
-        await query.message.edit_text(
-            "✅ <b>All settings have been reset!</b>\n\n"
-            "<i>Bot will now use environment variables or default values.</i>",
-            reply_markup=back_keyboard("main")
-        )
-        await query.answer("✅ Reset completed!", show_alert=True)
-    except Exception as e:
-        await query.answer(f"❌ Reset failed: {str(e)}", show_alert=True)
-
-# ===========================
-# SHOW HELP
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^show_help$'))
-async def show_help(client: Bot, query: CallbackQuery):
-    """Show help menu"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    await query.message.edit_text(
-        HELP_TEXT,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Main", callback_data="menu_main")]
-        ])
-    )
-    await query.answer()
-
-# ===========================
-# UTILITY HANDLERS
-# ===========================
-
-@Bot.on_callback_query(filters.regex(r'^close_panel$'))
-async def close_panel(client: Bot, query: CallbackQuery):
-    """Close the setup panel"""
-    if query.from_user.id not in [OWNER_ID] + ADMINS:
-        await query.answer("❌ Only admins can use this!", show_alert=True)
-        return
-    
-    await query.message.delete()
-    await query.answer("Setup panel closed!", show_alert=False)
-
-@Bot.on_callback_query(filters.regex(r'^noop$'))
-async def noop_handler(client: Bot, query: CallbackQuery):
-    """No operation - just answer the query"""
-    await query.answer()
+        await query.answer(f"Waiting for your input...", show_alert=False)
+    else:
+        await query.answer("This feature is coming soon!", show_alert=True)

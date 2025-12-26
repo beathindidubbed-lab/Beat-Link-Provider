@@ -1,4 +1,4 @@
-# plugins/start.py - Fixed version with no command conflicts
+# plugins/start.py - Fixed version with proper link handling
 
 import os
 import asyncio
@@ -34,21 +34,41 @@ async def start_command(client: Client, message: Message):
             pass
     
     text = message.text
+    
+    # Check if there's a parameter after /start
     if len(text) > 7:
         try:
             base64_string = text.split(" ", 1)[1]
         except:
+            # No valid parameter, show welcome
+            await send_welcome_message(client, message)
             return
         
-        string = await decode(base64_string)
+        # Decode the base64 string
+        try:
+            string = await decode(base64_string)
+        except Exception as e:
+            print(f"Decode error: {e}")
+            await message.reply_text(
+                "❌ <b>Invalid link!</b>\n\n"
+                "This link is corrupted or expired.\n"
+                "Please get a new link from the sender.",
+                quote=True
+            )
+            return
+        
         argument = string.split("-")
         
+        # Handle batch links (multiple files)
         if len(argument) == 3:
             try:
                 start = int(int(argument[1]) / abs(client.db_channel.id))
                 end = int(int(argument[2]) / abs(client.db_channel.id))
-            except:
+            except Exception as e:
+                print(f"Batch parse error: {e}")
+                await message.reply_text("❌ Invalid batch link!", quote=True)
                 return
+            
             if start <= end:
                 ids = range(start, end + 1)
             else:
@@ -59,18 +79,38 @@ async def start_command(client: Client, message: Message):
                     i -= 1
                     if i < end:
                         break
+        
+        # Handle single file links
         elif len(argument) == 2:
             try:
                 ids = [int(int(argument[1]) / abs(client.db_channel.id))]
-            except:
+            except Exception as e:
+                print(f"Single file parse error: {e}")
+                await message.reply_text("❌ Invalid file link!", quote=True)
                 return
+        else:
+            # Invalid format
+            await message.reply_text(
+                "❌ <b>Invalid link format!</b>\n\n"
+                "This link is not properly formatted.",
+                quote=True
+            )
+            return
         
-        temp_msg = await message.reply("Please wait...")
+        # Fetch and send files
+        temp_msg = await message.reply("⏳ <b>Please wait...</b>\n<i>Fetching your file(s)</i>")
+        
         try:
             messages = await get_messages(client, ids)
-        except:
-            await message.reply_text("Something went wrong..!")
+        except Exception as e:
+            print(f"Get messages error: {e}")
+            await temp_msg.edit_text(
+                "❌ <b>Error fetching files!</b>\n\n"
+                "The files may have been deleted or the link is invalid.\n"
+                "Please contact the person who shared this link."
+            )
             return
+        
         await temp_msg.delete()
 
         track_msgs = []
@@ -136,7 +176,8 @@ async def start_command(client: Client, message: Message):
                         reply_markup=reply_markup,
                         protect_content=PROTECT_CONTENT
                     )
-                except:
+                except Exception as e:
+                    print(f"Error copying message: {e}")
                     pass
 
         if track_msgs:
@@ -151,20 +192,31 @@ async def start_command(client: Client, message: Message):
             asyncio.create_task(delete_file(track_msgs, client, delete_data, original_link))
 
         return
+    
     else:
-        reply_markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("😊 About Me", callback_data="about"),
-                InlineKeyboardButton("🔒 Close", callback_data="close")
-            ]
-        ])
-        
-        if START_PIC:
+        # No parameter - show welcome message
+        await send_welcome_message(client, message)
+
+
+async def send_welcome_message(client: Client, message: Message):
+    """Send welcome message with buttons"""
+    reply_markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("😊 About", callback_data="about"),
+            InlineKeyboardButton("📚 Help", callback_data="help")
+        ],
+        [
+            InlineKeyboardButton("🔒 Close", callback_data="close")
+        ]
+    ])
+    
+    if START_PIC:
+        try:
             await message.reply_photo(
                 photo=START_PIC,
                 caption=START_MSG.format(
                     first=message.from_user.first_name,
-                    last=message.from_user.last_name,
+                    last=message.from_user.last_name if message.from_user.last_name else "",
                     username=None if not message.from_user.username else '@' + message.from_user.username,
                     mention=message.from_user.mention,
                     id=message.from_user.id
@@ -172,11 +224,12 @@ async def start_command(client: Client, message: Message):
                 reply_markup=reply_markup,
                 quote=True
             )
-        else:
+        except Exception as e:
+            print(f"Start pic error: {e}")
             await message.reply_text(
                 text=START_MSG.format(
                     first=message.from_user.first_name,
-                    last=message.from_user.last_name,
+                    last=message.from_user.last_name if message.from_user.last_name else "",
                     username=None if not message.from_user.username else '@' + message.from_user.username,
                     mention=message.from_user.mention,
                     id=message.from_user.id
@@ -185,7 +238,19 @@ async def start_command(client: Client, message: Message):
                 disable_web_page_preview=True,
                 quote=True
             )
-        return
+    else:
+        await message.reply_text(
+            text=START_MSG.format(
+                first=message.from_user.first_name,
+                last=message.from_user.last_name if message.from_user.last_name else "",
+                username=None if not message.from_user.username else '@' + message.from_user.username,
+                mention=message.from_user.mention,
+                id=message.from_user.id
+            ),
+            reply_markup=reply_markup,
+            disable_web_page_preview=True,
+            quote=True
+        )
 
 
 WAIT_MSG = "<b>Processing ...</b>"
@@ -195,6 +260,10 @@ REPLY_ERROR = "<code>Use this command as a reply to any telegram message without
 @Bot.on_message(filters.command('start') & filters.private)
 async def not_joined(client: Client, message: Message):
     """Handle non-subscribed users"""
+    
+    # Check if they have a file link parameter
+    text = message.text
+    has_file_link = len(text) > 7
     
     if bool(JOIN_REQUEST_ENABLE):
         invite = await client.create_chat_invite_link(
@@ -211,22 +280,25 @@ async def not_joined(client: Client, message: Message):
         ]
     ]
 
-    try:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text='Try Again',
-                    url=f"https://t.me/{client.username}?start={message.command[1]}"
-                )
-            ]
-        )
-    except IndexError:
-        pass
+    # If user has a file link, add "Try Again" button with the same link
+    if has_file_link:
+        try:
+            base64_string = text.split(" ", 1)[1]
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text='Try Again',
+                        url=f"https://t.me/{client.username}?start={base64_string}"
+                    )
+                ]
+            )
+        except:
+            pass
 
     await message.reply(
         text=FORCE_MSG.format(
             first=message.from_user.first_name,
-            last=message.from_user.last_name,
+            last=message.from_user.last_name if message.from_user.last_name else "",
             username=None if not message.from_user.username else '@' + message.from_user.username,
             mention=message.from_user.mention,
             id=message.from_user.id
